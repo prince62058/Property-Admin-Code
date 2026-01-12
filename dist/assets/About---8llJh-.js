@@ -1,0 +1,1 @@
+import{u as e,r as o,s as r,j as s,L as a}from"./index-D85Vk71e.js";const c=()=>{const t=e();return o.useEffect(()=>{t(r("About"))}),s.jsxs("div",{children:[s.jsx(a,{to:"/",children:"Home"}),s.jsx("h1",{children:"About!"})]})};export{c as default};
