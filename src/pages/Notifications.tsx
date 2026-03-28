@@ -78,12 +78,12 @@ const Notifications = () => {
           priority: 'high'
         }
       ];
-      
+
       // Sort by creation date (newest first)
-      const sortedNotifications = mockNotifications.sort((a, b) => 
+      const sortedNotifications = mockNotifications.sort((a, b) =>
         new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
       );
-      
+
       setNotifications(sortedNotifications);
     } catch (error) {
       setError('Error fetching notifications');
@@ -94,9 +94,9 @@ const Notifications = () => {
 
   const markAsRead = async (notificationId: string) => {
     try {
-      setNotifications(prev => 
-        prev.map(notification => 
-          notification._id === notificationId 
+      setNotifications(prev =>
+        prev.map(notification =>
+          notification._id === notificationId
             ? { ...notification, isRead: true }
             : notification
         )
@@ -108,7 +108,7 @@ const Notifications = () => {
 
   const markAllAsRead = async () => {
     try {
-      setNotifications(prev => 
+      setNotifications(prev =>
         prev.map(notification => ({ ...notification, isRead: true }))
       );
     } catch (error) {
@@ -118,7 +118,7 @@ const Notifications = () => {
 
   const deleteNotification = async (notificationId: string) => {
     try {
-      setNotifications(prev => 
+      setNotifications(prev =>
         prev.filter(notification => notification._id !== notificationId)
       );
       if (selectedNotification?._id === notificationId) {
@@ -242,31 +242,28 @@ const Notifications = () => {
                 <div className="flex gap-2">
                   <button
                     onClick={() => setFilter('all')}
-                    className={`px-3 py-1 text-sm rounded-md transition-colors ${
-                      filter === 'all' 
-                        ? 'bg-primary text-white' 
+                    className={`px-3 py-1 text-sm rounded-md transition-colors ${filter === 'all'
+                        ? 'bg-primary text-white'
                         : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
-                    }`}
+                      }`}
                   >
                     All ({notifications.length})
                   </button>
                   <button
                     onClick={() => setFilter('unread')}
-                    className={`px-3 py-1 text-sm rounded-md transition-colors ${
-                      filter === 'unread' 
-                        ? 'bg-primary text-white' 
+                    className={`px-3 py-1 text-sm rounded-md transition-colors ${filter === 'unread'
+                        ? 'bg-primary text-white'
                         : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
-                    }`}
+                      }`}
                   >
                     Unread ({unreadCount})
                   </button>
                   <button
                     onClick={() => setFilter('read')}
-                    className={`px-3 py-1 text-sm rounded-md transition-colors ${
-                      filter === 'read' 
-                        ? 'bg-primary text-white' 
+                    className={`px-3 py-1 text-sm rounded-md transition-colors ${filter === 'read'
+                        ? 'bg-primary text-white'
                         : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
-                    }`}
+                      }`}
                   >
                     Read ({notifications.length - unreadCount})
                   </button>
@@ -289,11 +286,10 @@ const Notifications = () => {
                   {filteredNotifications.map((notification) => (
                     <div
                       key={notification._id}
-                      className={`p-4 rounded-lg border cursor-pointer transition-all hover:shadow-md ${
-                        !notification.isRead 
-                          ? getNotificationBgColor(notification.type) + ' border-l-4' 
+                      className={`p-4 rounded-lg border cursor-pointer transition-all hover:shadow-md ${!notification.isRead
+                          ? getNotificationBgColor(notification.type) + ' border-l-4'
                           : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700'
-                      } ${selectedNotification?._id === notification._id ? 'ring-2 ring-primary' : ''}`}
+                        } ${selectedNotification?._id === notification._id ? 'ring-2 ring-primary' : ''}`}
                       onClick={() => {
                         setSelectedNotification(notification);
                         if (!notification.isRead) {
@@ -346,7 +342,7 @@ const Notifications = () => {
         <div className="lg:col-span-1">
           <div className="panel">
             <h5 className="font-semibold text-lg dark:text-white-light mb-4">Details</h5>
-            
+
             {selectedNotification ? (
               <div className="space-y-4">
                 <div className={`p-4 rounded-lg border ${getNotificationBgColor(selectedNotification.type)}`}>

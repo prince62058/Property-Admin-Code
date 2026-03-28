@@ -6,6 +6,8 @@ import IconX from '../components/Icon/IconX';
 import IconEdit from '../components/Icon/IconEdit';
 import { apiCall } from '../utils/api';
 import { BASE_URL } from '../config';
+import Swal from 'sweetalert2';
+import TableHeaderActions from '../components/TableHeaderActions';
 
 type SubadminItem = {
     _id: string;
@@ -34,6 +36,7 @@ type EditSubadminData = {
     email: string;
     phoneNumber?: string;
     permissions?: string[];
+    password?: string;
 };
 
 type SubadminApiResponse = {
@@ -44,7 +47,21 @@ type SubadminApiResponse = {
     limit?: number;
     totalPages?: number;
     data?: SubadminItem[];
+    pagination?: {
+        page: number;
+        limit: number;
+        total: number;
+        pages: number;
+    };
 };
+
+const toast = Swal.mixin({
+    toast: true,
+    position: 'top-end',
+    showConfirmButton: false,
+    timer: 2500,
+    showCloseButton: true,
+});
 
 const Subadmin = () => {
     const dispatch = useDispatch();
@@ -64,7 +81,8 @@ const Subadmin = () => {
     const [createError, setCreateError] = useState('');
     const [editError, setEditError] = useState('');
     const [successMessage, setSuccessMessage] = useState('');
-
+    const [showPassword, setShowPassword] = useState(false);
+    const [searchQuery, setSearchQuery] = useState("");
     // Available permissions list
     const availablePermissions = [
         'Dashboard',
@@ -81,9 +99,9 @@ const Subadmin = () => {
         'Cities',
         'Coupons',
         'Subadmin',
-        'Finance',
+        'AddOns',
         'send_notification'
-        
+
     ];
 
     const [formData, setFormData] = useState<CreateSubadminData>({
@@ -99,7 +117,8 @@ const Subadmin = () => {
         name: '',
         email: '',
         phoneNumber: '',
-        permissions: []
+        permissions: [],
+        password: '',
     });
 
     useEffect(() => {
@@ -107,26 +126,32 @@ const Subadmin = () => {
         fetchSubadmins();
     }, [dispatch, page]);
 
+    const filteredSubadmins = subadmins.filter((s) => {
+        const q = searchQuery.trim().toLowerCase();
+        if (!q) return true;
+
+        return (
+            (s.name || "").toLowerCase().includes(q) ||
+            (s.email || "").toLowerCase().includes(q) ||
+            (s.phoneNumber || "").includes(q) ||
+            (s.role || "").toLowerCase().includes(q)
+        );
+    });
+
     const fetchSubadmins = async () => {
         setLoading(true);
         setError('');
         try {
-            const response = await apiCall(`${BASE_URL}/getAllUsersWithRoles?role=SUBADMIN`, {
+            const response = await apiCall(`${BASE_URL}/getAllUsersWithRoles?role=SUBADMIN&page=${page}&limit=${limit}`, {
                 method: 'GET',
             });
-            
-            console.log('Fetch response status:', response.status);
-            console.log('Fetch response headers:', response.headers);
-            
+
             const data: SubadminApiResponse = await response.json();
-            console.log('API Response:', data);
-            console.log('Data success:', data.success);
-            console.log('Data data length:', data.data?.length);
-            
+
             if (data.success && data.data && data.data.length > 0) {
                 setSubadmins(data.data);
-                if (data.totalPages) {
-                    setTotalPages(data.totalPages);
+                if (data.pagination?.pages) {
+                    setTotalPages(data.pagination.pages);
                 } else {
                     setTotalPages(1);
                 }
@@ -150,12 +175,14 @@ const Subadmin = () => {
             // Toggle the status: if active, disable it; if inactive, enable it
             const newDisable = currentStatus === 'active' ? true : false;
             const response = await apiCall(`${BASE_URL}/toggleUserStatus/${subadminId}`, {
-                method: 'PATCH',
+                
+                method: 'PUT',
                 body: JSON.stringify({ disable: newDisable }),
             });
-            
+
             const result = await response.json();
             if (result.success) {
+                toast.fire({ icon: 'success', title: result.message || 'Status updated successfully!' });
                 fetchSubadmins();
             } else {
                 setError(result.message || 'Failed to update status');
@@ -165,7 +192,7 @@ const Subadmin = () => {
         }
     };
 
-   
+
     const resetCreateForm = () => {
         setFormData({
             name: '',
@@ -185,13 +212,11 @@ const Subadmin = () => {
         setSuccessMessage('');
 
         try {
-            // Debug: Log form data being sent
-            console.log('Form data being sent:', formData);
-            
             const requestData: any = {
                 name: formData.name,
                 phoneNumber: formData.phoneNumber,
-                permission: formData.permissions, // Convert array to comma-separated string
+                // permission: formData.permissions,
+                permissions: formData.permissions,
                 role: 'SUBADMIN'
             };
 
@@ -208,13 +233,11 @@ const Subadmin = () => {
                 body: JSON.stringify(requestData),
             });
 
-            console.log('Create response status:', response.status);
-            
             const result = await response.json();
             console.log('Create API response:', result);
-            
+
             if (result.success) {
-                setSuccessMessage('Subadmin created successfully!');
+                toast.fire({ icon: 'success', title: 'Subadmin created successfully!' });
                 setFormData({
                     name: '',
                     email: '',
@@ -225,11 +248,15 @@ const Subadmin = () => {
                 setIsCreateModalOpen(false);
                 fetchSubadmins();
             } else {
-                setCreateError(result.message || 'Failed to create subadmin');
+                const errorMessage = result.message || 'Failed to create subadmin';
+                setCreateError(errorMessage);
+                toast.fire({ icon: 'error', title: errorMessage });
             }
         } catch (error) {
             console.error('Create error:', error);
-            setCreateError('Error creating subadmin');
+            const errorMsg = 'Error creating subadmin';
+            setCreateError(errorMsg);
+            toast.fire({ icon: 'error', title: errorMsg });
         } finally {
             setCreateLoading(false);
         }
@@ -286,21 +313,13 @@ const Subadmin = () => {
     };
 
     const handleEdit = (subadmin: SubadminItem) => {
-        console.log('Editing subadmin data:', subadmin);
-        console.log('Phone number from API:', subadmin.phoneNumber);
         setEditFormData({
             _id: subadmin._id,
             name: subadmin.name || '',
             email: subadmin.email || '',
             phoneNumber: subadmin.phoneNumber || '',
-            permissions: subadmin.permissions || []
-        });
-        console.log('Set edit form data:', {
-            _id: subadmin._id,
-            name: subadmin.name || '',
-            email: subadmin.email || '',
-            phoneNumber: subadmin.phoneNumber || '',
-            permissions: subadmin.permissions || []
+            permissions: subadmin.permissions || [],
+            password: ''
         });
         setEditError('');
         setIsEditModalOpen(true);
@@ -313,40 +332,73 @@ const Subadmin = () => {
         setSuccessMessage('');
 
         try {
-            console.log('Edit form data being sent:', editFormData);
-            
             const response = await apiCall(`${BASE_URL}/updateAdmin/${editFormData._id}`, {
                 method: 'PUT',
                 body: JSON.stringify({
                     name: editFormData.name,
                     email: editFormData.email,
                     phoneNumber: editFormData.phoneNumber,
-                    permissions: editFormData.permissions
+                    permissions: editFormData.permissions,
+                    password: editFormData.password
                 }),
             });
 
-            console.log('Update response status:', response.status);
-            
             const result = await response.json();
-            console.log('Update API response:', result);
-            
+
             if (result.success) {
-                setSuccessMessage('Subadmin updated successfully!');
+                toast.fire({ icon: 'success', title: 'Subadmin updated successfully!' });
                 setIsEditModalOpen(false);
                 fetchSubadmins();
             } else {
                 // Handle specific access denied error
+                let errorMessage = '';
                 if (result.message === 'Access denied. Not an ADMIN account') {
-                    setEditError('You do not have permission to update subadmins. Only ADMIN users can perform this action.');
+                    errorMessage = 'You do not have permission to update subadmins. Only ADMIN users can perform this action.';
                 } else {
-                    setEditError(result.message || 'Failed to update subadmin');
+                    errorMessage = result.message || 'Failed to update subadmin';
                 }
+                setEditError(errorMessage);
+                toast.fire({ icon: 'error', title: errorMessage });
             }
         } catch (error) {
             console.error('Update error:', error);
-            setEditError('Error updating subadmin');
+            const errorMsg = 'Error updating subadmin';
+            setEditError(errorMsg);
+            toast.fire({ icon: 'error', title: errorMsg });
         } finally {
             setEditLoading(false);
+        }
+    };
+
+    const handleDownload = async (endpoint: string, fileType: "pdf" | "excel" | "csv") => {
+        try {
+            const token = localStorage.getItem('token');
+            const res = await fetch(`${BASE_URL}/${endpoint}`, {
+                method: 'GET',
+                headers: {
+                    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                }
+            });
+            if (!res.ok) {
+                throw new Error(`Failed to download ${fileType}`);
+            }
+            const blob = await res.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            let extension = "pdf";
+            if (fileType === "excel") extension = "xlsx";
+            if (fileType === "csv") extension = "csv";
+
+            a.download = `subadmin_${new Date().getTime()}.${extension}`;
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            document.body.removeChild(a);
+            toast.fire({ icon: 'success', title: 'Downloaded successfully' });
+        } catch (error) {
+            console.error(error);
+            toast.fire({ icon: 'error', title: `Failed to download ${fileType}` });
         }
     };
 
@@ -354,16 +406,34 @@ const Subadmin = () => {
         <>
             <div>
                 <div className="flex items-center justify-between mb-6">
-                    <h2 className="text-xl font-semibold">Subadmin Management</h2>
-                    <button 
+                    <h2 className="text-xl font-semibold">Sub Admin Management</h2>
+                    {/* <button
                         className="btn btn-primary"
                         onClick={() => {
                             resetCreateForm();
                             setIsCreateModalOpen(true);
                         }}
                     >
-                        Add Subadmin
-                    </button>
+                        Add Sub Admin
+                    </button> */}
+
+                    <div className="relative flex items-center gap-3 w-full sm:w-auto">
+                        <TableHeaderActions
+                            searchQuery={searchQuery}
+                            setSearchQuery={setSearchQuery}
+                            onDownload={handleDownload}
+                            pdfEndpoint="downlodPDF/userRole"
+                            excelEndpoint="downlodExcel/userRole"
+                            csvEndpoint="downlodCSV/userRole"
+                            placeholder="Search subadmin..."
+                        />
+                        <button type="button" className="btn btn-primary" onClick={() => {
+                            resetCreateForm();
+                            setIsCreateModalOpen(true);
+                        }}>
+                            Add Sub Admin
+                        </button>
+                    </div>
                 </div>
 
                 {successMessage && (
@@ -383,6 +453,7 @@ const Subadmin = () => {
                         <table>
                             <thead>
                                 <tr>
+                                    <th>S.No</th>
                                     <th>Name</th>
                                     <th>Email</th>
                                     <th>Phone</th>
@@ -396,38 +467,39 @@ const Subadmin = () => {
                                 {loading ? (
                                     <tr>
                                         <td colSpan={7} className="text-center py-8">
-                                          <div className="flex justify-center items-center">
-                                            <div className="animate-spin border-2 border-[#2596be] dark:border-white !border-l-transparent rounded-full w-8 h-8"></div>
-                                        </div>
+                                            <div className="flex justify-center items-center">
+                                                <div className="animate-spin border-2 border-[#2596be] dark:border-white !border-l-transparent rounded-full w-8 h-8"></div>
+                                            </div>
                                         </td>
                                     </tr>
-                                ) : subadmins.length === 0 ? (
+                                ) : filteredSubadmins.length === 0 ? (
                                     <tr>
                                         <td colSpan={7} className="text-center py-8">
-                                            No subadmins found
+                                            No sub Admins found
                                         </td>
                                     </tr>
                                 ) : (
-                                    subadmins.map((subadmin) => (
+                                    filteredSubadmins.map((subadmin, index) => (
                                         <tr key={subadmin._id}>
+                                            <td>{(page - 1) * limit + index + 1}</td>
                                             <td>{subadmin.name || 'N/A'}</td>
                                             <td>{subadmin.email || 'N/A'}</td>
                                             <td>{subadmin.phoneNumber || 'N/A'}</td>
                                             <td>{subadmin.role || 'N/A'}</td>
-                                          <td>
-    <label className="relative inline-flex items-center cursor-pointer">
-        <input
-            type="checkbox"
-            className="sr-only peer"
-            checked={subadmin.status === "active" || subadmin.disable === false}
-            onChange={() => {
-                const isActive = subadmin.status === "active" || subadmin.disable === false;
-                handleToggleStatus(subadmin._id, isActive ? "active" : "inactive");
-            }}
-        />
+                                            <td>
+                                                <label className="relative inline-flex items-center cursor-pointer">
+                                                    <input
+                                                        type="checkbox"
+                                                        className="sr-only peer"
+                                                        checked={subadmin.status === "active" || subadmin.disable === false}
+                                                        onChange={() => {
+                                                            const isActive = subadmin.status === "active" || subadmin.disable === false;
+                                                            handleToggleStatus(subadmin._id, isActive ? "active" : "inactive");
+                                                        }}
+                                                    />
 
-        <div
-            className="
+                                                    <div
+                                                        className="
                 w-11 h-6 rounded-full
                 bg-red-500
                 peer-focus:outline-none
@@ -440,18 +512,18 @@ const Subadmin = () => {
                 after:shadow-sm
                 peer-checked:after:translate-x-full peer-checked:after:border-white
             "
-        ></div>
-    </label>
-</td>
+                                                    ></div>
+                                                </label>
+                                            </td>
 
                                             <td>
-                                                {subadmin.createdAt 
+                                                {subadmin.createdAt
                                                     ? new Date(subadmin.createdAt).toLocaleDateString('en-GB')
                                                     : 'N/A'
                                                 }
                                             </td>
                                             <td className="text-center">
-                                                <button 
+                                                <button
                                                     type="button"
                                                     className="btn btn-sm btn-outline-primary"
                                                     onClick={() => handleEdit(subadmin)}
@@ -466,29 +538,27 @@ const Subadmin = () => {
                         </table>
                     </div>
 
-                    {totalPages > 1 && (
-                        <div className="flex justify-between items-center mt-4">
-                            <div>
-                                Page {page} of {totalPages}
-                            </div>
-                            <div className="flex gap-2">
-                                <button 
-                                    className="btn btn-sm"
-                                    onClick={() => setPage(prev => Math.max(1, prev - 1))}
-                                    disabled={page === 1}
-                                >
-                                    Previous
-                                </button>
-                                <button 
-                                    className="btn btn-sm"
-                                    onClick={() => setPage(prev => Math.min(totalPages, prev + 1))}
-                                    disabled={page === totalPages}
-                                >
-                                    Next
-                                </button>
-                            </div>
+                    <div className="flex items-center justify-end gap-2 mt-5">
+                        <button
+                            type="button"
+                            className="btn btn-outline-primary"
+                            disabled={page <= 1 || loading}
+                            onClick={() => setPage(prev => Math.max(1, prev - 1))}
+                        >
+                            Prev
+                        </button>
+                        <div className="text-white-dark text-sm">
+                            Page {page} of {totalPages}
                         </div>
-                    )}
+                        <button
+                            type="button"
+                            className="btn btn-outline-primary"
+                            disabled={page >= totalPages || loading}
+                            onClick={() => setPage(prev => Math.min(totalPages, prev + 1))}
+                        >
+                            Next
+                        </button>
+                    </div>
                 </div>
             </div>
 
@@ -519,7 +589,7 @@ const Subadmin = () => {
                             >
                                 <DialogPanel className="w-full max-w-lg transform rounded-2xl bg-white p-6 text-left align-middle shadow-xl transition-all dark:bg-dark">
                                     <div className="flex items-center justify-between mb-6 pb-4 border-b border-gray-200 dark:border-gray-700">
-                                        <h3 className="text-2xl font-bold text-gray-900 dark:text-white">Create New Subadmin</h3>
+                                        <h3 className="text-2xl font-bold text-gray-900 dark:text-white">Create New Sub Admin</h3>
                                         <button
                                             type="button"
                                             className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition-colors"
@@ -680,7 +750,7 @@ const Subadmin = () => {
                             >
                                 <DialogPanel className="w-full max-w-lg transform overflow-hidden rounded-2xl bg-white dark:bg-gray-800 p-6 text-left align-middle shadow-2xl border border-gray-100 dark:border-gray-700 transition-all">
                                     <div className="flex items-center justify-between mb-6 pb-4 border-b border-gray-200 dark:border-gray-700">
-                                        <h3 className="text-2xl font-bold text-gray-900 dark:text-white">Edit Subadmin</h3>
+                                        <h3 className="text-2xl font-bold text-gray-900 dark:text-white">Edit Sub Admin</h3>
                                         <button
                                             type="button"
                                             className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition-colors"
@@ -738,6 +808,33 @@ const Subadmin = () => {
                                                     title="Please enter exactly 10 digits"
                                                 />
                                             </div>
+
+
+                                            <div>
+                                                <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                                                    Password
+                                                </label>
+
+                                                <div className="relative">
+                                                    <input
+                                                        type={showPassword ? "text" : "password"}
+                                                        name="password"
+                                                        value={editFormData.password || ""}
+                                                        onChange={handleEditInputChange}
+                                                        className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white transition-all"
+                                                        placeholder="Enter new password"
+                                                    />
+
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setShowPassword(!showPassword)}
+                                                        className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-gray-500"
+                                                    >
+                                                        {showPassword ? "Hide" : "Show"}
+                                                    </button>
+                                                </div>
+                                            </div>
+
 
                                             <div>
                                                 <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Permissions</label>

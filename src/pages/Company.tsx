@@ -221,7 +221,6 @@ const Company = () => {
             <div className="panel">
                 <div className="flex items-center justify-between mb-5">
                     <h5 className="font-semibold text-lg dark:text-white-light">Company</h5>
-                    {companyId && <div className="text-white-dark text-sm">ID: {companyId}</div>}
                 </div>
 
                 {error && <div className="text-danger mb-4">{error}</div>}
@@ -281,10 +280,10 @@ const Company = () => {
                             </div>
                         </div>
 
-                        <div>
+                        {/* <div>
                             <label className="text-white-dark text-xs">Logo (path/url)</label>
                             <input className="form-input" value={logo} onChange={(e) => setLogo(e.target.value)} type="text" />
-                        </div>
+                        </div> */}
 
                         <div>
                             <label className="text-white-dark text-xs">About Us</label>

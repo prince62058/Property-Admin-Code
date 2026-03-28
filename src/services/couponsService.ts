@@ -15,19 +15,23 @@ export interface Coupon {
 export interface CouponsResponse {
   success: boolean;
   data: Coupon[];
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
 }
 
 import { BASE_URL } from '../config';
 
 export class CouponsService {
 
-  static async getCoupons(): Promise<CouponsResponse> {
+  static async getCoupons(page: number = 1, limit: number = 10): Promise<CouponsResponse> {
     try {
       const token = localStorage.getItem('token') || localStorage.getItem('accessToken') || '';
       console.log('CouponsService - Token:', token);
-      console.log('CouponsService - API URL:', `${BASE_URL}/coupon`);
+      console.log('CouponsService - API URL:', `${BASE_URL}/coupon?page=${page}&limit=${limit}`);
       
-      const response = await fetch(`${BASE_URL}/coupon`, {
+      const response = await fetch(`${BASE_URL}/coupon?page=${page}&limit=${limit}`, {
         method: 'GET',
         headers: {
           'Accept': 'application/json',

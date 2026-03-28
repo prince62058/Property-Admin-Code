@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import IconBell from '../components/Icon/IconBell';
 import IconPlus from '../components/Icon/IconPlus';
 import IconX from '../components/Icon/IconX';
@@ -29,8 +29,8 @@ interface Property {
 interface NotificationFormData {
   title: string;
   message: string;
-  pType: 'NOTIFICATION' | 'MESSAGE';
-  subType: 'REVIEW' | 'SLOD' | 'OTHER';
+  pType: 'NOTIFICATION';
+  // subType: 'REVIEW' | 'SLOD' | 'OTHER';
   userId: string;
   propertyId: string;
   sendToAll: boolean;
@@ -42,7 +42,7 @@ interface SentNotification {
   title: string;
   message: string;
   pType: string;
-  subType: string;
+  // subType: string;
   propertyId?: string;
   isRead: boolean;
   createdAt: string;
@@ -58,20 +58,36 @@ const SendNotification = () => {
   const [properties, setProperties] = useState<Property[]>([]);
   const [usersLoading, setUsersLoading] = useState(false);
   const [propertiesLoading, setPropertiesLoading] = useState(false);
+  const [propertySearch, setPropertySearch] = useState('');
+  const [propertyDropdownOpen, setPropertyDropdownOpen] = useState(false);
+  const isSelectingRef = useRef(false);
 
   const [formData, setFormData] = useState<NotificationFormData>({
     title: '',
     message: '',
     pType: 'NOTIFICATION',
-    subType: 'REVIEW',
+    // subType: 'REVIEW',
     userId: '',
     propertyId: '',
     sendToAll: false,
   });
 
   useEffect(() => {
+    // Skip the debounced fetch if a property was just selected from the dropdown
+    if (isSelectingRef.current) {
+      isSelectingRef.current = false;
+      return;
+    }
+
+    const delay = setTimeout(() => {
+      fetchProperties(propertySearch);
+    }, 400);
+
+    return () => clearTimeout(delay);
+  }, [propertySearch]);
+
+  useEffect(() => {
     fetchUsers();
-    fetchProperties();
   }, []);
 
   const fetchUsers = async () => {
@@ -85,7 +101,7 @@ const SendNotification = () => {
           'Authorization': `Bearer ${token}`,
         },
       });
-      
+
       if (response.ok) {
         const data = await response.json();
         if (data.success && Array.isArray(data.data)) {
@@ -99,34 +115,43 @@ const SendNotification = () => {
     }
   };
 
-  const fetchProperties = async () => {
+  const fetchProperties = async (search = "") => {
     setPropertiesLoading(true);
+
     try {
-      const token = localStorage.getItem('token') || sessionStorage.getItem('token');
-      const response = await fetch(`${BASE_URL}/getAllProperties?page=1&limit=100&sort=recent,most-view,low-to-high`, {
-        method: 'GET',
+      const token = localStorage.getItem("token") || sessionStorage.getItem("token");
+
+      const url = new URL(`${BASE_URL}/getAllProperties`);
+      url.searchParams.set("page", "1");
+      url.searchParams.set("limit", "50");
+
+      if (search) {
+        url.searchParams.set("search", search);
+      }
+
+      const response = await fetch(url.toString(), {
+        method: "GET",
         headers: {
-          'Accept': 'application/json',
-          'Authorization': `Bearer ${token}`,
+          Accept: "application/json",
+          Authorization: `Bearer ${token}`,
         },
       });
-      
-      if (response.ok) {
-        const data = await response.json();
-        if (data.success && Array.isArray(data.data)) {
-          setProperties(data.data.filter((property: Property) => !property.sold));
-        }
+
+      const data = await response.json();
+
+      if (response.ok && data.success) {
+        setProperties(data.data || []);
       }
     } catch (error) {
-      console.error('Error fetching properties:', error);
+      console.error("Error fetching properties:", error);
     } finally {
       setPropertiesLoading(false);
     }
   };
 
-  
 
-  
+
+
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value, type } = e.target;
     setFormData(prev => ({
@@ -135,8 +160,7 @@ const SendNotification = () => {
     }));
   };
 
-  
-  
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -145,25 +169,20 @@ const SendNotification = () => {
 
     try {
       const token = localStorage.getItem('token') || sessionStorage.getItem('token');
-      
+
       // Remove manual ID validation since we're using dropdowns
       if (!formData.sendToAll && !formData.userId) {
         setError('Please select a user or check "Send To All Users"');
         setLoading(false);
         return;
       }
-      
-      if (!formData.propertyId) {
-        setError('Please select a property');
-        setLoading(false);
-        return;
-      }
-      
+
+
       const payload = {
         title: formData.title,
         message: formData.message,
         pType: formData.pType,
-        subType: formData.subType,
+        // subType: formData.subType,
         userId: formData.userId,
         propertyId: formData.propertyId,
         sendToAll: formData.sendToAll,
@@ -188,7 +207,7 @@ const SendNotification = () => {
           title: '',
           message: '',
           pType: 'NOTIFICATION',
-          subType: 'REVIEW',
+          // subType: 'REVIEW',
           userId: '',
           propertyId: '',
           sendToAll: false,
@@ -243,7 +262,7 @@ const SendNotification = () => {
           <IconBell className="w-5 h-5 mr-2 text-primary" />
           <h1 className="text-2xl font-semibold">Send Notifications</h1>
         </div>
-        
+
       </div>
 
       {/* Success/Error Messages */}
@@ -269,12 +288,13 @@ const SendNotification = () => {
       <div className="panel">
         <div className="mb-5">
           <h5 className="font-semibold text-lg dark:text-white-light mb-4">Send New Notification</h5>
-          
+
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium mb-1">Notification Title *</label>
+              <label className="block text-sm font-medium mb-1">Notification Title * </label>
               <input
                 type="text"
+
                 name="title"
                 value={formData.title}
                 onChange={handleInputChange}
@@ -285,7 +305,7 @@ const SendNotification = () => {
             </div>
 
             <div>
-              <label className="block text-sm font-medium mb-1">Message *</label>
+              <label className="block text-sm font-medium mb-1">Message  *</label>
               <textarea
                 name="message"
                 value={formData.message}
@@ -305,86 +325,123 @@ const SendNotification = () => {
                   value={formData.pType}
                   onChange={handleInputChange}
                   className="form-select w-full"
+                  disabled
                 >
                   <option value="NOTIFICATION">Notification</option>
-                  <option value="MESSAGE">Message</option>
-                 
                 </select>
               </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+
+              <div >
+                <label className="block text-sm font-medium mb-1">Select User </label>
+                <div className="relative">
+                  {usersLoading ? (
+                    <div className="flex items-center justify-center p-3 border border-gray-300 rounded-md bg-white dark:bg-gray-800">
+                      <IconLoader className="animate-spin w-5 h-5 text-primary" />
+                      <span className="ml-2 text-sm">Loading users...</span>
+                    </div>
+                  ) : (
+                    <select
+                      name="userId"
+                      value={formData.userId}
+                      onChange={handleInputChange}
+                      disabled={formData.sendToAll}
+                      className="form-select w-full"
+                    >
+                      <option value="">Select a user</option>
+                      {users.map((user) => (
+                        <option key={user._id} value={user._id}>
+                          {user.name || 'Unknown User'} - {user.email || user.phoneNumber || 'No contact info'}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                </div>
+                {users.length === 0 && !usersLoading && (
+                  <p className="text-xs text-gray-500 mt-1">No active users found</p>
+                )}
+              </div>
+
               <div>
-                <label className="block text-sm font-medium mb-1">Sub Type</label>
-                <select
-                  name="subType"
-                  value={formData.subType}
-                  onChange={handleInputChange}
-                  className="form-select w-full"
-                >
-                  <option value="REVIEW">Review</option>
-                  <option value="SLOD">Slot</option>
-                  <option value="OTHER">Other</option>
-                </select>
-              </div>
-            </div>
+                <label className="block text-sm font-medium mb-1">Select Property</label>
+                <div className="relative">
+                  {/* Search Input — always visible, never replaced by spinner */}
+                  <div className="relative">
+                    <input
+                      type="text"
+                      className="form-input w-full pr-8"
+                      placeholder="Search property by name, location..."
+                      value={propertySearch}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        setPropertySearch(value);
+                        setPropertyDropdownOpen(true);
 
-            <div>
-              <label className="block text-sm font-medium mb-1">Select User *</label>
-              <div className="relative">
-                {usersLoading ? (
-                  <div className="flex items-center justify-center p-3 border border-gray-300 rounded-md bg-white dark:bg-gray-800">
-                    <IconLoader className="animate-spin w-5 h-5 text-primary" />
-                    <span className="ml-2 text-sm">Loading users...</span>
+                        if (!value) {
+                          setFormData(prev => ({ ...prev, propertyId: '' }));
+                        }
+                      }}
+                      onFocus={() => setPropertyDropdownOpen(true)}
+                      onBlur={() => setTimeout(() => setPropertyDropdownOpen(false), 200)}
+                    />
+                    {/* Clear button */}
+                    {(propertySearch || formData.propertyId) && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPropertySearch('');
+                          setFormData(prev => ({ ...prev, propertyId: '' }));
+                        }}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                    )}
                   </div>
-                ) : (
-                  <select
-                    name="userId"
-                    value={formData.userId}
-                    onChange={handleInputChange}
-                    disabled={formData.sendToAll}
-                    className="form-select w-full"
-                    required={!formData.sendToAll}
-                  >
-                    <option value="">Select a user</option>
-                    {users.map((user) => (
-                      <option key={user._id} value={user._id}>
-                        {user.name || 'Unknown User'} - {user.email || user.phoneNumber || 'No contact info'}
-                      </option>
-                    ))}
-                  </select>
+
+                  {/* Dropdown list */}
+                  {propertyDropdownOpen && (
+                    <div className="absolute z-50 mt-1 w-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg max-h-56 overflow-y-auto">
+                      {propertiesLoading ? (
+                        <div className="flex items-center justify-center p-3">
+                          <IconLoader className="animate-spin w-5 h-5 text-primary" />
+                          <span className="ml-2 text-sm text-gray-500">Searching properties...</span>
+                        </div>
+                      ) : properties.length > 0 ? (
+                        properties.map(p => (
+                          <button
+                            key={p._id}
+                            type="button"
+                            onMouseDown={() => {
+                              isSelectingRef.current = true;
+                              setFormData(prev => ({ ...prev, propertyId: p._id }));
+                              setPropertySearch(`${p.title || 'Untitled'} — ${p.location || 'No location'}`);
+                              setPropertyDropdownOpen(false);
+                            }}
+                            className={`w-full text-left px-4 py-2.5 text-sm hover:bg-primary/10 transition-colors ${formData.propertyId === p._id
+                              ? 'bg-primary/10 text-primary font-semibold'
+                              : 'text-gray-800 dark:text-gray-200'
+                              }`}
+                          >
+                            <span className="font-medium">{p.title || 'Untitled Property'}</span>
+                            <span className="text-xs text-gray-500 dark:text-gray-400 ml-2">
+                              {p.location || 'No location'} · {p.listingType || 'Unknown'}
+                            </span>
+                          </button>
+                        ))
+                      ) : (
+                        <p className="px-4 py-3 text-sm text-gray-400 italic">No properties match your search</p>
+                      )}
+                    </div>
+                  )}
+                </div>
+                {properties.length === 0 && !propertiesLoading && (
+                  <p className="text-xs text-gray-500 mt-1">No available properties found</p>
                 )}
               </div>
-              {users.length === 0 && !usersLoading && (
-                <p className="text-xs text-gray-500 mt-1">No active users found</p>
-              )}
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium mb-1">Select Property *</label>
-              <div className="relative">
-                {propertiesLoading ? (
-                  <div className="flex items-center justify-center p-3 border border-gray-300 rounded-md bg-white dark:bg-gray-800">
-                    <IconLoader className="animate-spin w-5 h-5 text-primary" />
-                    <span className="ml-2 text-sm">Loading properties...</span>
-                  </div>
-                ) : (
-                  <select
-                    name="propertyId"
-                    value={formData.propertyId}
-                    onChange={handleInputChange}
-                    className="form-select w-full"
-                    required
-                  >
-                    <option value="">Select a property</option>
-                    {properties.map((property) => (
-                      <option key={property._id} value={property._id}>
-                        {property.title || 'Untitled Property'} - {property.location || 'No location'} ({property.propertyType || 'Unknown Type'})
-                      </option>
-                    ))}
-                  </select>
-                )}
-              </div>
-              {properties.length === 0 && !propertiesLoading && (
-                <p className="text-xs text-gray-500 mt-1">No available properties found</p>
-              )}
             </div>
 
             <div>
@@ -415,7 +472,7 @@ const SendNotification = () => {
         </div>
       </div>
 
-     
+
     </div>
   );
 };

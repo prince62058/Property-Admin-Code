@@ -204,8 +204,7 @@ const AccountSetting = () => {
                 await fetchUser();
                 toast.fire({
                     icon: 'success',
-                    title: 'Success',
-                    text: 'Profile updated successfully'
+                    title: 'User Profile Updated.',
                 });
             } else {
                 throw new Error(data.message || 'Failed to update information');
@@ -324,7 +323,7 @@ const AccountSetting = () => {
                                                 disabled={saving}
                                             />
                                         </div>
-                                        <div>
+                                        {/* <div>
                                             <label htmlFor="profession">Profession</label>
                                             <input 
                                                 id="profession" 
@@ -335,8 +334,8 @@ const AccountSetting = () => {
                                                 defaultValue={user?.profession || ''}
                                                 disabled={saving}
                                             />
-                                        </div>
-                                        <div>
+                                        </div> */}
+                                        {/* <div>
                                             <label htmlFor="country">Country</label>
                                             <select 
                                                 name="country" 
@@ -354,8 +353,8 @@ const AccountSetting = () => {
                                                 <option value="Norway">Norway</option>
                                                 <option value="Canada">Canada</option>
                                             </select>
-                                        </div>
-                                        <div>
+                                        </div> */}
+                                        {/* <div>
                                             <label htmlFor="address">Address</label>
                                             <input 
                                                 id="address" 
@@ -366,7 +365,7 @@ const AccountSetting = () => {
                                                 defaultValue={user?.address || ''}
                                                 disabled={saving}
                                             />
-                                        </div>
+                                        </div> */}
                                        
                                         <div>
                                             <label htmlFor="phone">Phone</label>
@@ -397,7 +396,7 @@ const AccountSetting = () => {
                                                 disabled={saving}
                                             />
                                         </div>
-                                        <div>
+                                        {/* <div>
                                             <label htmlFor="web">Website</label>
                                             <input 
                                                 id="web" 
@@ -408,7 +407,7 @@ const AccountSetting = () => {
                                                 defaultValue={user?.Website || user?.web || ''}
                                                 disabled={saving}
                                             />
-                                        </div>
+                                        </div> */}
 
                                         <div className="sm:col-span-2 mt-3">
                                             <button 

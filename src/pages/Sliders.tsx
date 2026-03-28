@@ -18,6 +18,8 @@ type HomeImageItem = {
   HomeImage: Array<{
     _id: string;
     url: string;
+    createdAt?: string;
+    updatedAt?: string;
   }>;
   disable?: boolean;
   createdAt: string;
@@ -29,6 +31,9 @@ type HomeImagesResponse = {
   success: boolean;
   total?: number;
   message?: string;
+  page?: number;
+  limit?: number;
+  totalPages?: number;
   data: HomeImageItem[];
 };
 
@@ -69,6 +74,12 @@ const Sliders = () => {
   const [currentEditId, setCurrentEditId] = useState<string | null>(null);
   const [imageId, setImageId] = useState("");
 
+  // Pagination state
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(10);
+  const [totalPages, setTotalPages] = useState(1);
+  const [total, setTotal] = useState(0);
+
   useEffect(() => {
     dispatch(setPageTitle("Sliders"));
   }, [dispatch]);
@@ -83,7 +94,7 @@ const Sliders = () => {
         localStorage.getItem("accessToken") ||
         "";
 
-      const res = await fetch(`${BASE_URL}/getAllHomeImages`, {
+      const res = await fetch(`${BASE_URL}/getAllHomeImages?page=${page}&limit=${limit}`, {
         method: "GET",
         headers: {
           Accept: "application/json",
@@ -91,7 +102,7 @@ const Sliders = () => {
         },
         ...(signal ? { signal } : {}),
       });
-
+      console.log("response of all images", res)
       if (!res.ok) {
         let detailsText = "";
         try {
@@ -113,8 +124,8 @@ const Sliders = () => {
         const suffix = detailsMsg
           ? `: ${detailsMsg}`
           : detailsText
-          ? `: ${detailsText}`
-          : "";
+            ? `: ${detailsText}`
+            : "";
         throw new Error(`Failed to fetch sliders (${res.status})${suffix}`);
       }
 
@@ -124,8 +135,26 @@ const Sliders = () => {
         throw new Error(json?.message || "Failed to fetch sliders");
       }
 
-      console.log("Fetched images:", json.data);
-      setImages(Array.isArray(json?.data) ? json.data : []);
+      // Update pagination info
+      setTotalPages(json.totalPages || 1);
+      setTotal(json.total || 0);
+
+      // Transform flat API data into nested structure for UI compatibility
+      const transformedData = (json.data || []).map((item: any) => ({
+        _id: item.homeId || item._id,
+        HomeImage: [{
+          _id: item._id,
+          url: item.url,
+          createdAt: item.createdAt,
+          updatedAt: item.updatedAt,
+        }],
+        disable: item.disable,
+        createdAt: item.createdAt,
+        updatedAt: item.updatedAt,
+      }));
+
+      console.log("Fetched images (transformed):", transformedData);
+      setImages(Array.isArray(transformedData) ? transformedData : []);
     } catch (err) {
       if ((err as Error)?.name !== "AbortError") {
         setError((err as Error)?.message || "Failed to fetch sliders");
@@ -140,7 +169,7 @@ const Sliders = () => {
     fetchHomeImages(controller.signal);
     return () => controller.abort();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [page]);
 
   const flatImages = useMemo(() => {
     const allImages: Array<{
@@ -150,7 +179,7 @@ const Sliders = () => {
       url: string;
       createdAt: string;
       updatedAt: string;
-      isDisabled: boolean;
+      disable: boolean;
     }> = [];
 
     images.forEach((img, parentIdx) => {
@@ -162,12 +191,20 @@ const Sliders = () => {
             parentId: img._id,
             imageId: imageObj._id,
             url: imageObj.url,
-            createdAt: img.createdAt,
-            updatedAt: img.updatedAt,
-            isDisabled: img.disable || false,
+            createdAt: imageObj.createdAt || img.createdAt,
+            updatedAt: imageObj.updatedAt || img.updatedAt,
+            disable: img.disable || false,
           });
         });
       }
+    });
+
+    // Sort by updatedAt descending (latest on top)
+    // When using server-side pagination, sorting usually happens on the server.
+    // However, we maintain this to sort the current page if it's not already sorted.
+    allImages.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+    allImages.forEach((item, i) => {
+      item.idx = (page - 1) * limit + i;
     });
 
     return allImages;
@@ -199,6 +236,9 @@ const Sliders = () => {
     setImageId("");
   };
 
+
+
+
   const handleDelete = async (parentId: string, imageId: string) => {
     const result = await Swal.fire({
       title: "Are you sure?",
@@ -218,7 +258,7 @@ const Sliders = () => {
           "";
 
         const res = await fetch(
-          `${BASE_URL}/home-image/${parentId}/${imageId}`,
+          `${BASE_URL}/home-image/${imageId}/${parentId}`,
           {
             method: "DELETE",
             headers: {
@@ -249,8 +289,8 @@ const Sliders = () => {
           const suffix = detailsMsg
             ? `: ${detailsMsg}`
             : detailsText
-            ? `: ${detailsText}`
-            : "";
+              ? `: ${detailsText}`
+              : "";
           throw new Error(`Failed to delete slider (${res.status})${suffix}`);
         }
 
@@ -262,9 +302,9 @@ const Sliders = () => {
         toast.fire({ icon: "success", title: "Slider deleted successfully" });
         await fetchHomeImages();
       } catch (err) {
-        toast.fire({ 
-          icon: "error", 
-          title: (err as Error)?.message || "Failed to delete slider" 
+        toast.fire({
+          icon: "error",
+          title: (err as Error)?.message || "Failed to delete slider"
         });
       }
     }
@@ -294,7 +334,7 @@ const Sliders = () => {
       });
 
       const res = await fetch(
-        `${BASE_URL}/home-image/${currentEditId}/${imageId}`,
+        `${BASE_URL}/home-image/${imageId}/${currentEditId}`,
         {
           method: "PUT",
           headers: {
@@ -326,8 +366,8 @@ const Sliders = () => {
         const suffix = detailsMsg
           ? `: ${detailsMsg}`
           : detailsText
-          ? `: ${detailsText}`
-          : "";
+            ? `: ${detailsText}`
+            : "";
         throw new Error(`Failed to update slider (${res.status})${suffix}`);
       }
 
@@ -398,8 +438,8 @@ const Sliders = () => {
         const suffix = detailsMsg
           ? `: ${detailsMsg}`
           : detailsText
-          ? `: ${detailsText}`
-          : "";
+            ? `: ${detailsText}`
+            : "";
         throw new Error(`Failed to upload slider (${res.status})${suffix}`);
       }
 
@@ -417,6 +457,61 @@ const Sliders = () => {
       setUploading(false);
     }
   };
+
+
+  const handleToggleStatus = async (id: string) => {
+    try {
+      const token =
+        localStorage.getItem("token") ||
+        localStorage.getItem("accessToken") ||
+        "";
+
+      const res = await fetch(`${BASE_URL}/home-image-toggle/${id}`, {
+        method: "PATCH",
+        headers: {
+          Accept: "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+      });
+
+      if (!res.ok) {
+        let detailsText = "";
+        try {
+          detailsText = await res.text();
+        } catch {
+          detailsText = "";
+        }
+
+        let detailsMsg = "";
+        try {
+          const maybeJson = detailsText
+            ? (JSON.parse(detailsText) as { message?: string })
+            : null;
+          detailsMsg = maybeJson?.message || "";
+        } catch {
+          detailsMsg = "";
+        }
+
+        const suffix = detailsMsg
+          ? `: ${detailsMsg}`
+          : detailsText
+            ? `: ${detailsText}`
+            : "";
+        throw new Error(`Failed to toggle slider status (${res.status})${suffix}`);
+      }
+
+      const json = (await res.json()) as UploadHomeImageResponse;
+      if (!json?.success) {
+        throw new Error(json?.message || "Failed to toggle slider status");
+      }
+
+      toast.fire({ icon: "success", title: "Slider status toggled successfully" });
+      await fetchHomeImages();
+    } catch (err) {
+      setError((err as Error)?.message || "Failed to toggle slider status");
+    }
+  }
+
 
   return (
     <div>
@@ -466,103 +561,139 @@ const Sliders = () => {
             <div className="text-white-dark">No sliders found</div>
           </div>
         ) : (
-          <div className="table-responsive">
-            <table className="table-striped">
-              <thead>
-                <tr>
-                  <th className="!text-center">#</th>
-                  <th>Image</th>
-                  <th>Image ID</th>
-                  <th>Parent ID</th>
-                  <th>Status</th>
-                  <th>Created At</th>
-                  <th>Updated At</th>
-                  <th className="!text-center">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {flatImages.map((item) => (
-                  <tr key={`${item.parentId}_${item.imageId}`}>
-                    <td className="!text-center">{item.idx + 1}</td>
-                    <td>
-                      <div className="flex items-center">
-                        <div className="w-20 h-20 rounded overflow-hidden border border-gray-200 dark:border-gray-700">
-                          {item.url ? (
-                            <img
-                              src={item.url}
-                              alt={`Slider ${item.idx + 1}`}
-                              className="w-full h-full object-cover"
-                              onError={(e) => {
-                                const target = e.target as HTMLImageElement;
-                                target.src = `https://via.placeholder.com/80x80?text=Image+${item.idx + 1}`;
-                              }}
-                            />
-                          ) : (
-                            <div className="w-full h-full flex items-center justify-center bg-gray-100 dark:bg-gray-800">
-                              <span className="text-gray-400 text-xs">
-                                No Image
-                              </span>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    </td>
-                    <td>
-                      <div className="font-mono text-xs">{item.imageId}</div>
-                    </td>
-                    <td>
-                      <div className="font-mono text-xs">{item.parentId}</div>
-                    </td>
-                    <td>
-                      <span className={`badge ${item.isDisabled ? 'bg-danger/20 text-danger' : 'bg-success/20 text-success'} rounded-full px-3 py-1 text-xs`}>
-                        {item.isDisabled ? 'Disabled' : 'Active'}
-                      </span>
-                    </td>
-                    <td>
-                      <div className="text-xs">
-                        {new Date(item.createdAt).toLocaleDateString()}
-                      </div>
-                      <div className="text-xs text-gray-500">
-                        {new Date(item.createdAt).toLocaleTimeString()}
-                      </div>
-                    </td>
-                    <td>
-                      <div className="text-xs">
-                        {new Date(item.updatedAt).toLocaleDateString()}
-                      </div>
-                      <div className="text-xs text-gray-500">
-                        {new Date(item.updatedAt).toLocaleTimeString()}
-                      </div>
-                    </td>
-                    <td className="!text-center">
-                      <div className="flex items-center justify-center gap-2">
-                        <button
-                          type="button"
-                          className="btn btn-sm btn-primary"
-                          onClick={() => openEdit(item.parentId, item.imageId)}
-                          title="Edit"
-                          disabled={item.isDisabled}
-                        >
-                          <IconPencil className="w-4 h-4" />
-                        </button>
-                        <button
-                          type="button"
-                          className="btn btn-sm btn-danger"
-                          onClick={() =>
-                            handleDelete(item.parentId, item.imageId)
-                          }
-                          title="Delete"
-                          disabled={item.isDisabled}
-                        >
-                          <IconTrash className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </td>
+          <>
+            <div className="table-responsive">
+              <table className="table-striped">
+                <thead>
+                  <tr>
+                    <th className="!text-center">#</th>
+                    <th>Image</th>
+                    <th>Status</th>
+                    <th>Created At</th>
+                    <th>Updated At</th>
+                    <th>Active/Inactive</th>
+                    <th className="!text-center">Actions</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {flatImages.map((item) => (
+                    <tr key={`${item.parentId}_${item.imageId}`}>
+                      <td className="!text-center">{item.idx + 1}</td>
+                      <td>
+                        <div className="flex items-center">
+                          <div className="w-20 h-20 rounded overflow-hidden border border-gray-200 dark:border-gray-700">
+                            {item.url ? (
+                              <img
+                                src={item.url}
+                                alt={`Slider ${item.idx + 1}`}
+                                className="w-full h-full object-cover"
+                                onError={(e) => {
+                                  const target = e.target as HTMLImageElement;
+                                  target.src = `https://via.placeholder.com/80x80?text=Image+${item.idx + 1}`;
+                                }}
+                              />
+                            ) : (
+                              <div className="w-full h-full flex items-center justify-center bg-gray-100 dark:bg-gray-800">
+                                <span className="text-gray-400 text-xs">
+                                  No Image
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </td>
+                      {/* <td>
+                        <div className="font-mono text-xs">{item.imageId}</div>
+                      </td>
+                      <td>
+                        <div className="font-mono text-xs">{item.parentId}</div>
+                      </td> */}
+                      <td>
+                        <span className={`badge ${item.disable ? 'bg-danger text-danger' : 'bg-success text-success'} rounded-full px-3 py-1 text-xs`}>
+                          {item.disable ? 'Inactive' : 'Active'}
+                        </span>
+                      </td>
+                      <td>
+                        <div className="text-xs">
+                          {new Date(item.createdAt).toLocaleDateString()}
+                        </div>
+                        <div className="text-xs text-gray-500">
+                          {new Date(item.createdAt).toLocaleTimeString()}
+                        </div>
+                      </td>
+                      <td>
+                        <div className="text-xs">
+                          {new Date(item.updatedAt).toLocaleDateString()}
+                        </div>
+                        <div className="text-xs text-gray-500">
+                          {new Date(item.updatedAt).toLocaleTimeString()}
+                        </div>
+                      </td>
+                      <td>
+                        <button
+                          type="button"
+                          onClick={() => handleToggleStatus(item.imageId)}
+                          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200 ${!item.disable ? 'bg-success' : 'bg-gray-300 dark:bg-gray-600'
+                            }`}
+                          title={item.disable ? 'Click to activate' : 'Click to deactivate'}
+                        >
+                          <span
+                            className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform duration-200 ${!item.disable ? 'translate-x-6' : 'translate-x-1'
+                              }`}
+                          />
+                        </button>
+                      </td>
+                      <td className="!text-center">
+                        <div className="flex items-center justify-center gap-2">
+                          <button
+                            type="button"
+                            className="btn btn-sm btn-primary"
+                            onClick={() => openEdit(item.parentId, item.imageId)}
+                            title="Edit"
+                            disabled={item.disable}
+                          >
+                            <IconPencil className="w-4 h-4" />
+                          </button>
+                          <button
+                            type="button"
+                            className="btn btn-sm btn-danger"
+                            onClick={() =>
+                              handleDelete(item.parentId, item.imageId)
+                            }
+                            title="Delete"
+                            disabled={item.disable}
+                          >
+                            <IconTrash className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="flex items-center justify-end gap-2 mt-5 p-4 border-t">
+              <button
+                type="button"
+                className="btn btn-outline-primary"
+                disabled={page <= 1 || loading}
+                onClick={() => setPage(p => Math.max(1, p - 1))}
+              >
+                Prev
+              </button>
+              {/* <div className="text-white-dark text-sm mx-2">
+                Page {page} of {totalPages}
+              </div> */}
+              <button
+                type="button"
+                className="btn btn-outline-primary"
+                disabled={page >= totalPages || loading}
+                onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+              >
+                Next
+              </button>
+            </div>
+          </>
         )}
       </div>
 

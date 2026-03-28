@@ -8,6 +8,7 @@ import IconEdit from '../components/Icon/IconEdit';
 import IconX from '../components/Icon/IconX';
 import Swal from 'sweetalert2';
 import { BASE_URL } from '../config';
+import { Download } from 'lucide-react';
 
 type PlanItem = {
     _id: string;
@@ -18,7 +19,16 @@ type PlanItem = {
     features?: string[];
     createProperty?: number;
     isActive?: boolean;
+    allowedRoles?: string[];
+    allowedAddons?: string[];
     createdAt?: string;
+};
+
+type AddonItem = {
+    _id: string;
+    title: string;
+    price: number;
+    description?: string;
 };
 
 type PlansApiResponse = {
@@ -50,6 +60,7 @@ const PackagesList = () => {
     const dispatch = useDispatch();
 
     const [plans, setPlans] = useState<PlanItem[]>([]);
+    const [addons, setAddons] = useState<AddonItem[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
@@ -61,9 +72,12 @@ const PackagesList = () => {
     const [title, setTitle] = useState('');
     const [price, setPrice] = useState<string>('');
     const [planType, setPlanType] = useState<'FREE' | 'PREMIUM' | 'SILVER' | 'GOLD'>('SILVER');
+    const [allowedRoles, setAllowedRoles] = useState<string[]>([]);
+
     const [validityInDays, setValidityInDays] = useState<string>('');
     const [featuresText, setFeaturesText] = useState('');
     const [createProperty, setCreateProperty] = useState<string>('');
+    const [allowedAddons, setAllowedAddons] = useState<string[]>([]);
     const [isActive, setIsActive] = useState(true);
     const [saving, setSaving] = useState(false);
 
@@ -71,6 +85,19 @@ const PackagesList = () => {
     const [limit] = useState(10);
     const [total, setTotal] = useState(0);
     const [totalPages, setTotalPages] = useState(0);
+
+    const [searchQuery, setSearchQuery] = useState("");
+    const [debouncedSearch, setDebouncedSearch] = useState("");
+
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            if (debouncedSearch !== searchQuery) {
+                setDebouncedSearch(searchQuery);
+                setPage(1); // Reset to first page on new search
+            }
+        }, 500);
+        return () => clearTimeout(timer);
+    }, [searchQuery, debouncedSearch]);
 
     useEffect(() => {
         dispatch(setPageTitle('Packages'));
@@ -81,10 +108,11 @@ const PackagesList = () => {
         setEditingPlanId(null);
         setTitle('');
         setPrice('');
-        setPlanType('SILVER');
+        setAllowedRoles([]);
         setValidityInDays('');
         setFeaturesText('');
         setCreateProperty('');
+        setAllowedAddons([]);
         setIsActive(true);
         setError(null);
         setIsFormOpen(true);
@@ -95,14 +123,19 @@ const PackagesList = () => {
         setEditingPlanId(plan._id);
         setTitle(plan.title || '');
         setPrice(typeof plan.price === 'number' ? String(plan.price) : '');
-        setPlanType(plan.planType || 'SILVER');
+        setAllowedRoles(Array.isArray(plan.allowedRoles) ? plan.allowedRoles : []);
         setValidityInDays(typeof plan.validityInDays === 'number' ? String(plan.validityInDays) : '');
         setFeaturesText(Array.isArray(plan.features) ? plan.features.join('\n') : '');
         setCreateProperty(typeof plan.createProperty === 'number' ? String(plan.createProperty) : '');
+        setAllowedAddons(plan.allowedAddons || []);
         setIsActive(Boolean(plan.isActive));
         setError(null);
         setIsFormOpen(true);
     };
+
+
+
+
 
     const closeForm = () => {
         if (saving) return;
@@ -121,10 +154,11 @@ const PackagesList = () => {
             const payload = {
                 title: plan.title,
                 price: plan.price,
-                planType: plan.planType || 'SILVER',
+                allowedRoles,
                 validityInDays: plan.validityInDays,
                 features: plan.features,
                 createProperty: plan.createProperty,
+                allowedAddons: plan.allowedAddons,
                 isActive: nextIsActive,
             };
 
@@ -144,18 +178,18 @@ const PackagesList = () => {
             }
 
             // Show success toast message
-            toast.fire({ 
-                icon: 'success', 
-                title: nextIsActive ? 'Package disabled successfully' : 'Package enabled successfully' 
+            toast.fire({
+                icon: 'success',
+                title: nextIsActive ? 'Package enabled successfully' : 'Package disabled successfully'
             });
         } catch (err) {
             setPlans((prev) => prev.map((p) => (p._id === plan._id ? { ...p, isActive: Boolean(plan.isActive) } : p)));
             setError((err as Error)?.message || 'Failed to update status');
-            
+
             // Show error toast message
-            toast.fire({ 
-                icon: 'error', 
-                title: (err as Error)?.message || 'Failed to update package status' 
+            toast.fire({
+                icon: 'error',
+                title: (err as Error)?.message || 'Failed to update package status'
             });
         } finally {
             setTogglingPlanIds((prev) => {
@@ -212,10 +246,12 @@ const PackagesList = () => {
             const payload = {
                 title: trimmedTitle,
                 price: parsedPrice,
+                allowedRoles,
                 planType,
                 validityInDays: parsedValidity,
                 features,
                 createProperty: parsedCreateProperty,
+                allowedAddons,
                 isActive,
             };
 
@@ -251,6 +287,23 @@ const PackagesList = () => {
         }
     };
 
+
+
+    useEffect(() => {
+        const fetchAddons = async () => {
+            try {
+                const res = await apiCall(`${BASE_URL}/addon/getAll`, { method: 'GET' });
+                const json = await res.json();
+                if (json.success) {
+                    setAddons(json.data || []);
+                }
+            } catch (err) {
+                console.error('Failed to fetch addons', err);
+            }
+        };
+        fetchAddons();
+    }, []);
+
     useEffect(() => {
         const controller = new AbortController();
 
@@ -261,6 +314,9 @@ const PackagesList = () => {
                 const url = new URL(`${BASE_URL}/subscription/getPlans`);
                 url.searchParams.set('page', String(page));
                 url.searchParams.set('limit', String(limit));
+                if (debouncedSearch) {
+                    url.searchParams.set("search", debouncedSearch);
+                }
 
                 const res = await apiCall(url.toString(), {
                     method: 'GET',
@@ -273,7 +329,17 @@ const PackagesList = () => {
                 }
 
                 console.log('Plans API response:', json);
-                setPlans(Array.isArray(json?.data) ? json.data : []);
+
+                const fetchedPlans = Array.isArray(json?.data) ? json.data : [];
+                const sortedPlans = fetchedPlans.sort((a, b) => {
+                    const aCreated = a.createdAt || "";
+                    const bCreated = b.createdAt || "";
+                    if (aCreated > bCreated) return -1;
+                    if (aCreated < bCreated) return 1;
+                    return 0;
+                });
+
+                setPlans(sortedPlans);
                 setTotal(json?.total || 0);
                 setTotalPages(json?.totalPages || Math.ceil((json?.total || 0) / limit));
             } catch (err) {
@@ -288,16 +354,59 @@ const PackagesList = () => {
         fetchPlans();
 
         return () => controller.abort();
-    }, [page, limit]);
+    }, [page, limit, debouncedSearch]);
+
+    const handleDownload = async (endpoint: string, fileType: "pdf" | "excel") => {
+        try {
+            const token = localStorage.getItem('token');
+            const res = await fetch(`${BASE_URL}/${endpoint}`, {
+                method: 'GET',
+                headers: {
+                    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                }
+            });
+            if (!res.ok) {
+                throw new Error(`Failed to download ${fileType}`);
+            }
+            const blob = await res.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `packages_${new Date().getTime()}.${fileType === 'excel' ? 'xlsx' : 'pdf'}`;
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            document.body.removeChild(a);
+            toast.fire({ icon: 'success', title: 'Downloaded successfully' });
+        } catch (error) {
+            console.error(error);
+            toast.fire({ icon: 'error', title: `Failed to download ${fileType}` });
+        }
+    };
 
     return (
         <div>
             <div className="panel">
-                <div className="flex items-center justify-between mb-5">
+                <div className="flex flex-col sm:flex-row items-center justify-between mb-5 gap-4">
                     <h5 className="font-semibold text-lg dark:text-white-light">Packages</h5>
-                    <button type="button" className="btn btn-primary" onClick={openCreateForm}>
-                        Create Package
-                    </button>
+                    <div className="relative flex items-center gap-3 w-full sm:w-auto">
+                        <input
+                            type="text"
+                            placeholder="Search packages..."
+                            className="form-input w-full sm:w-64"
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                        />
+                        <button type="button" className="btn btn-outline-danger flex items-center gap-2" onClick={() => handleDownload('subscription/export-pdf', 'pdf')}>
+                            <Download className="w-4 h-4" /> PDF
+                        </button>
+                        <button type="button" className="btn btn-outline-success flex items-center gap-2" onClick={() => handleDownload('subscription/export-excel', 'excel')}>
+                            <Download className="w-4 h-4" /> Excel
+                        </button>
+                        <button type="button" className="btn btn-primary" onClick={openCreateForm}>
+                            Create Package
+                        </button>
+                    </div>
                 </div>
 
                 {error && <div className="text-danger mb-4">{error}</div>}
@@ -309,7 +418,7 @@ const PackagesList = () => {
                                 <th>S.No</th>
                                 <th>Title</th>
                                 <th>Plan Type</th>
-                                <th>Price</th>
+                                <th className="w-[150px] whitespace-nowrap">Price</th>
                                 <th>Validity</th>
                                 <th>Create Property</th>
                                 <th>Features</th>
@@ -329,7 +438,7 @@ const PackagesList = () => {
                                 </tr>
                             ) : plans.length === 0 ? (
                                 <tr>
-                                   <td colSpan={10} className="text-center py-8">
+                                    <td colSpan={10} className="text-center py-8">
                                         <div className="flex justify-center items-center">
                                             <div className="animate-spin border-2 border-[#2596be] dark:border-white !border-l-transparent rounded-full w-8 h-8"></div>
                                         </div>
@@ -344,17 +453,18 @@ const PackagesList = () => {
                                         </td>
                                         <td>
                                             <div className="whitespace-nowrap">
-                                                <span className={`badge ${
-                                                    p.planType === 'PREMIUM' ? 'bg-purple-100 text-purple-800' :
-                                                    p.planType === 'GOLD' ? 'bg-yellow-100 text-yellow-800' :
-                                                    p.planType === 'SILVER' ? 'bg-gray-100 text-gray-800' :
-                                                    'bg-green-100 text-green-800'
-                                                }`}>
+                                                <span className={`badge ${p.planType === 'PREMIUM' ? 'bg-purple-800 text-purple-800' :
+                                                    p.planType === 'GOLD' ? 'bg-yellow-400 text-yellow-800' :
+                                                        p.planType === 'SILVER' ? 'bg-warning text-gray-800' :
+                                                            'bg-success text-success'
+                                                    }`}>
                                                     {p.planType || 'SILVER'}
                                                 </span>
                                             </div>
                                         </td>
-                                        <td>{typeof p.price === 'number' ? `₹ ${p.price}` : '-'}</td>
+                                        <td className="w-[150px] whitespace-nowrap">
+                                            {typeof p.price === 'number' ? `₹ ${p.price}` : '-'}
+                                        </td>
                                         <td>{typeof p.validityInDays === 'number' ? `${p.validityInDays} Days` : '-'}</td>
                                         <td>{typeof p.createProperty === 'number' ? p.createProperty : '-'}</td>
                                         <td>
@@ -369,34 +479,32 @@ const PackagesList = () => {
                                         <td>
                                             <button
                                                 type="button"
-                                                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                                                    p.isActive ? 'bg-green-500' : 'bg-red-500'
-                                                } ${Boolean(togglingPlanIds[p._id]) ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}`}
+                                                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${p.isActive ? 'bg-success' : 'bg-red-500'
+                                                    } ${Boolean(togglingPlanIds[p._id]) ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}`}
                                                 onClick={() => onToggleIsActive(p)}
                                                 disabled={Boolean(togglingPlanIds[p._id])}
                                                 aria-pressed={Boolean(p.isActive)}
                                             >
                                                 <span
-                                                    className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${
-                                                        p.isActive ? 'translate-x-5' : 'translate-x-0.5'
-                                                    }`}
+                                                    className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${p.isActive ? 'translate-x-5' : 'translate-x-0.5'
+                                                        }`}
                                                 />
                                             </button>
                                         </td>
-                                       <td>
-  {p.createdAt ? (
-    <div className="whitespace-nowrap">
-      {new Date(p.createdAt).toLocaleString('en-IN', {
-        day: '2-digit',
-        month: 'short',
-        year: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: true,
-      })}
-    </div>
-  ) : '-'}
-</td>
+                                        <td>
+                                            {p.createdAt ? (
+                                                <div className="whitespace-nowrap">
+                                                    {new Date(p.createdAt).toLocaleString('en-IN', {
+                                                        day: '2-digit',
+                                                        month: 'short',
+                                                        year: 'numeric',
+                                                        hour: '2-digit',
+                                                        minute: '2-digit',
+                                                        hour12: true,
+                                                    })}
+                                                </div>
+                                            ) : '-'}
+                                        </td>
 
                                         <td className="text-center">
                                             <button type="button" className="btn btn-sm btn-outline-primary" onClick={() => openEditForm(p)}>
@@ -415,15 +523,15 @@ const PackagesList = () => {
                         Showing {plans.length} of {total} plans
                     </div>
                     <div className="flex items-center gap-2">
-                        <button 
-                            type="button" 
-                            className="btn btn-outline-primary" 
-                            disabled={page <= 1 || loading} 
+                        <button
+                            type="button"
+                            className="btn btn-outline-primary"
+                            disabled={page <= 1 || loading}
                             onClick={() => setPage((p) => Math.max(1, p - 1))}
                         >
                             Prev
                         </button>
-                        
+
                         <div className="flex items-center gap-1">
                             {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
                                 let pageNum;
@@ -436,16 +544,15 @@ const PackagesList = () => {
                                 } else {
                                     pageNum = page - 2 + i;
                                 }
-                                
+
                                 return (
                                     <button
                                         key={pageNum}
                                         type="button"
-                                        className={`btn btn-sm ${
-                                            page === pageNum 
-                                                ? 'btn-primary' 
-                                                : 'btn-outline-primary'
-                                        }`}
+                                        className={`btn btn-sm ${page === pageNum
+                                            ? 'btn-primary'
+                                            : 'btn-outline-primary'
+                                            }`}
                                         onClick={() => setPage(pageNum)}
                                         disabled={loading}
                                     >
@@ -454,11 +561,11 @@ const PackagesList = () => {
                                 );
                             })}
                         </div>
-                        
-                        <button 
-                            type="button" 
-                            className="btn btn-outline-primary" 
-                            disabled={page >= totalPages || loading} 
+
+                        <button
+                            type="button"
+                            className="btn btn-outline-primary"
+                            disabled={page >= totalPages || loading}
                             onClick={() => setPage((p) => p + 1)}
                         >
                             Next
@@ -502,7 +609,7 @@ const PackagesList = () => {
                                         </div>
 
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                            <div>
+                                            {/* <div>
                                                 <label className="text-white-dark text-xs">Plan Type</label>
                                                 <select className="form-select" value={planType} onChange={(e) => setPlanType(e.target.value as 'FREE' | 'PREMIUM' | 'SILVER' | 'GOLD')}>
                                                     <option value="FREE">Free</option>
@@ -510,6 +617,65 @@ const PackagesList = () => {
                                                     <option value="SILVER">Silver</option>
                                                     <option value="GOLD">Gold</option>
                                                 </select>
+                                            </div> */}
+                                            <div>
+                                                <label className="text-white-dark text-xs mb-2 block">Allowed Roles</label>
+                                                <div className="border border-white-light dark:border-[#1b2e4b] rounded p-3 space-y-2">
+                                                    <div className="flex items-center gap-2">
+                                                        <input
+                                                            type="checkbox"
+                                                            id="role-propertyowner"
+                                                            className="form-checkbox"
+                                                            checked={allowedRoles.includes('PROPERTYOWNER')}
+                                                            onChange={(e) => {
+                                                                if (e.target.checked) {
+                                                                    setAllowedRoles((prev) => [...prev, 'PROPERTYOWNER']);
+                                                                } else {
+                                                                    setAllowedRoles((prev) => prev.filter((role) => role !== 'PROPERTYOWNER'));
+                                                                }
+                                                            }}
+                                                        />
+                                                        <label htmlFor="role-propertyowner" className="mb-0 cursor-pointer">
+                                                            Property Owner
+                                                        </label>
+                                                    </div>
+                                                    <div className="flex items-center gap-2">
+                                                        <input
+                                                            type="checkbox"
+                                                            id="role-broker"
+                                                            className="form-checkbox"
+                                                            checked={allowedRoles.includes('BROKER')}
+                                                            onChange={(e) => {
+                                                                if (e.target.checked) {
+                                                                    setAllowedRoles((prev) => [...prev, 'BROKER']);
+                                                                } else {
+                                                                    setAllowedRoles((prev) => prev.filter((role) => role !== 'BROKER'));
+                                                                }
+                                                            }}
+                                                        />
+                                                        <label htmlFor="role-broker" className="mb-0 cursor-pointer">
+                                                            Broker
+                                                        </label>
+                                                    </div>
+                                                    <div className="flex items-center gap-2">
+                                                        <input
+                                                            type="checkbox"
+                                                            id="role-builder"
+                                                            className="form-checkbox"
+                                                            checked={allowedRoles.includes('BUILDER')}
+                                                            onChange={(e) => {
+                                                                if (e.target.checked) {
+                                                                    setAllowedRoles((prev) => [...prev, 'BUILDER']);
+                                                                } else {
+                                                                    setAllowedRoles((prev) => prev.filter((role) => role !== 'BUILDER'));
+                                                                }
+                                                            }}
+                                                        />
+                                                        <label htmlFor="role-builder" className="mb-0 cursor-pointer">
+                                                            Builder
+                                                        </label>
+                                                    </div>
+                                                </div>
                                             </div>
                                             <div>
                                                 <label className="text-white-dark text-xs">Create Property Limit</label>
@@ -520,6 +686,36 @@ const PackagesList = () => {
                                         <div>
                                             <label className="text-white-dark text-xs">Features (comma or new line separated)</label>
                                             <textarea className="form-textarea" rows={4} value={featuresText} onChange={(e) => setFeaturesText(e.target.value)} />
+                                        </div>
+
+                                        <div>
+                                            <label className="text-white-dark text-xs mb-2 block">Allowed Addons</label>
+                                            <div className="border border-white-light dark:border-[#1b2e4b] rounded p-3 max-h-40 overflow-y-auto">
+                                                {addons.length > 0 ? (
+                                                    addons.map((addon) => (
+                                                        <div key={addon._id} className="flex items-center gap-2 mb-2 last:mb-0">
+                                                            <input
+                                                                type="checkbox"
+                                                                id={`addon-${addon._id}`}
+                                                                className="form-checkbox"
+                                                                checked={allowedAddons.includes(addon._id)}
+                                                                onChange={(e) => {
+                                                                    if (e.target.checked) {
+                                                                        setAllowedAddons((prev) => [...prev, addon._id]);
+                                                                    } else {
+                                                                        setAllowedAddons((prev) => prev.filter((id) => id !== addon._id));
+                                                                    }
+                                                                }}
+                                                            />
+                                                            <label htmlFor={`addon-${addon._id}`} className="mb-0 cursor-pointer">
+                                                                {addon.title} {addon.price ? `(₹${addon.price})` : ''}
+                                                            </label>
+                                                        </div>
+                                                    ))
+                                                ) : (
+                                                    <div className="text-gray-500 text-sm">No addons available</div>
+                                                )}
+                                            </div>
                                         </div>
 
                                         {/* <div className="flex items-center gap-2">

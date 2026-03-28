@@ -32,17 +32,38 @@ import IconMenuDatatables from '../Icon/Menu/IconMenuDatatables';
 import IconMenuForms from '../Icon/Menu/IconMenuForms';
 import IconMenuPages from '../Icon/Menu/IconMenuPages';
 import IconMenuMore from '../Icon/Menu/IconMenuMore';
-
+import { BASE_URL } from '../../config';
+import axios from 'axios';
 const Header = () => {
     const [userEmail, setUserEmail] = useState('');
     const [userName, setUserName] = useState('');
+    const [userImage, setUserImage] = useState('');
+    const adminId = localStorage.getItem('admin') || '';
+
+    useEffect(() => {
+        const fetchUserId = async () => {
+            try {
+                const res = await axios.get(`${BASE_URL}/getUserById/${adminId}`, {
+                    headers: {
+                        Authorization: `Bearer ${localStorage.getItem('token')}`
+                    }
+                });
+                console.log(res.data.data)
+                setUserImage(res.data.data.userImage);
+            } catch (error) {
+                console.log(error)
+            }
+        };
+        fetchUserId();
+    }, [])
+
+
 
     useEffect(() => {
         // Get user data from localStorage
         const email = localStorage.getItem('userEmail') || '';
         const name = localStorage.getItem('userName') || '';
-        console.log("Header - Retrieved userEmail:", email);
-        console.log("Header - Retrieved userName:", name);
+
         setUserEmail(email);
         setUserName(name);
     }, []);
@@ -156,10 +177,7 @@ const Header = () => {
             <div className="shadow-sm">
                 <div className="relative bg-white flex w-full items-center px-5 py-2.5 dark:bg-black">
                     <div className="horizontal-logo flex lg:hidden justify-between items-center ltr:mr-2 rtl:ml-2">
-                        <Link to="/" className="main-logo flex items-center shrink-0">
-                            <img className="w-[8rem] object-cover ml-[5px] flex-none" src="/assets/images/Vector.png" alt="logo" />
-                            {/* <span className="text-2xl ltr:ml-1.5 rtl:mr-1.5  font-semibold  align-middle hidden md:inline dark:text-white-light transition-all duration-300">Property Call Center</span> */}
-                        </Link>
+
                         <button
                             type="button"
                             className="collapse-icon flex-none dark:text-[#d0d2d6] hover:text-primary dark:hover:text-primary flex lg:hidden ltr:ml-2 rtl:mr-2 p-2 rounded-full bg-white-light/40 dark:bg-dark/40 hover:bg-white-light/90 dark:hover:bg-dark/60"
@@ -218,7 +236,7 @@ const Header = () => {
                                 <IconSearch className="w-4.5 h-4.5 mx-auto dark:text-[#d0d2d6]" />
                             </button> */}
                         </div>
-                        <div>
+                        {/* <div>
                             {themeConfig.theme === 'light' ? (
                                 <button
                                     className={`${
@@ -260,7 +278,7 @@ const Header = () => {
                                     <IconLaptop />
                                 </button>
                             )}
-                        </div>
+                        </div> */}
                         {/* <div className="dropdown shrink-0">
                             <Dropdown
                                 offset={[0, 8]}
@@ -432,16 +450,16 @@ const Header = () => {
                                 offset={[0, 8]}
                                 placement={`${isRtl ? 'bottom-start' : 'bottom-end'}`}
                                 btnClassName="relative group block"
-                                button={<img className="w-9 h-9 rounded-full object-cover saturate-50 group-hover:saturate-100" src="/assets/images/user-profile.jpeg" alt="userProfile" />}
+                                button={<img className="w-9 h-9 rounded-full object-cover saturate-50 group-hover:saturate-100" src={userImage} alt="userProfile" />}
                             >
                                 <ul className="text-dark dark:text-white-dark !py-0 w-[230px] font-semibold dark:text-white-light/90">
                                     <li>
                                         <div className="flex items-center px-4 py-4">
-                                            <img className="rounded-md w-10 h-10 object-cover" src="/assets/images/user-profile.jpeg" alt="userProfile" />
+                                            <img className="rounded-md w-10 h-10 object-cover" src={userImage} alt="userProfile" />
                                             <div className="ltr:pl-4 rtl:pr-4 truncate">
                                                 <h4 className="text-base">
                                                     {userName || 'User'}
-                                                   
+
                                                 </h4>
                                                 <button type="button" className="text-black/60 hover:text-primary dark:text-dark-light/60 dark:hover:text-white">
                                                     {userEmail || 'user@example.com'}
@@ -468,7 +486,7 @@ const Header = () => {
                                         </Link>
                                     </li> */}
                                     <li className="border-t border-white-light dark:border-white-light/10">
-                                        <button 
+                                        <button
                                             onClick={() => {
                                                 localStorage.removeItem('token');
                                                 localStorage.removeItem('token');

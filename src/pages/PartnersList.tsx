@@ -6,6 +6,7 @@ import IconEdit from '../components/Icon/IconEdit';
 import IconX from '../components/Icon/IconX';
 import Swal from 'sweetalert2';
 import { BASE_URL } from '../config';
+import TableHeaderActions from '../components/TableHeaderActions';
 
 type Partner = {
     _id: string;
@@ -63,6 +64,7 @@ const PartnersList = () => {
     const [isDisabled, setIsDisabled] = useState(false);
     const [saving, setSaving] = useState(false);
 
+    const [searchQuery, setSearchQuery] = useState("");
     useEffect(() => {
         dispatch(setPageTitle('Partners'));
     }, [dispatch]);
@@ -163,18 +165,18 @@ const PartnersList = () => {
             }
 
             // Show success toast message
-            toast.fire({ 
-                icon: 'success', 
-                title: nextDisable ? 'Partner disabled successfully' : 'Partner enabled successfully' 
+            toast.fire({
+                icon: 'success',
+                title: nextDisable ? 'Partner disabled successfully' : 'Partner enabled successfully'
             });
         } catch (err) {
             setPartners((prev) => prev.map((p) => (p._id === partner._id ? { ...p, disable: Boolean(partner.disable) } : p)));
             setError((err as Error)?.message || 'Failed to update partner status');
-            
+
             // Show error toast message
-            toast.fire({ 
-                icon: 'error', 
-                title: (err as Error)?.message || 'Failed to update partner status' 
+            toast.fire({
+                icon: 'error',
+                title: (err as Error)?.message || 'Failed to update partner status'
             });
         } finally {
             setTogglingPartnerIds((prev) => {
@@ -198,19 +200,19 @@ const PartnersList = () => {
         setError(null);
         try {
             const token = localStorage.getItem('token');
-            
+
             const payload: any = {
                 PartnerName: trimmedName,
                 disable: isDisabled,
             };
-            
+
             // Add image to payload if selected
             if (partnerImage) {
                 const formData = new FormData();
                 formData.append('PartnerName', trimmedName);
                 formData.append('disable', String(isDisabled));
                 formData.append('PartnerImage', partnerImage);
-                
+
                 let url = `${BASE_URL}/createPartner`;
                 let method: 'POST' | 'PUT' = 'POST';
                 if (formMode === 'edit') {
@@ -390,14 +392,66 @@ const PartnersList = () => {
         };
     }, [page, limit]);
 
+    const filteredPartners = partners.filter((p) => {
+        const query = searchQuery.trim().toLowerCase();
+
+        if (!query) return true;
+
+        const name = p.PartnerName?.toLowerCase() || "";
+
+        return name.includes(query);
+    });
+
+    const handleDownload = async (endpoint: string, fileType: "pdf" | "excel" | "csv") => {
+        try {
+            const token = localStorage.getItem('token');
+            const res = await fetch(`${BASE_URL}/${endpoint}`, {
+                method: 'GET',
+                headers: {
+                    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                }
+            });
+            if (!res.ok) {
+                throw new Error(`Failed to download ${fileType}`);
+            }
+            const blob = await res.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url; let extension = "pdf";
+
+            if (fileType === "excel") extension = "xlsx";
+            if (fileType === "csv") extension = "csv";
+
+            a.download = `partners_${new Date().getTime()}.${extension}`; a.download = `partners_${new Date().getTime()}.${fileType === 'excel' ? 'xlsx' : 'pdf'}`;
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            document.body.removeChild(a);
+            toast.fire({ icon: 'success', title: 'Downloaded successfully' });
+        } catch (error) {
+            console.error(error);
+            toast.fire({ icon: 'error', title: `Failed to download ${fileType}` });
+        }
+    };
+
     return (
         <div>
             <div className="panel">
                 <div className="flex items-center justify-between mb-5">
-                    <h5 className="font-semibold text-lg dark:text-white-light">Partners</h5>
-                    <button type="button" className="btn btn-primary" onClick={openCreateForm}>
-                        Create Partner
-                    </button>
+                    <h5 className="font-semibold text-lg dark:text-white-light ">Partners</h5>
+                    <div className="relative flex items-center gap-3 w-full sm:w-auto">
+                        <TableHeaderActions
+                            searchQuery={searchQuery}
+                            setSearchQuery={setSearchQuery}
+                            onDownload={handleDownload}
+                            pdfEndpoint="exportPartnersPDF"
+                            excelEndpoint="exportPartnersExcel"
+                            placeholder="Search partners..."
+                        />
+                        <button type="button" className="btn btn-primary" onClick={openCreateForm}>
+                            Create Partner
+                        </button>
+                    </div>
                 </div>
 
                 {error && <div className="text-danger mb-4">{error}</div>}
@@ -423,20 +477,20 @@ const PartnersList = () => {
                                         </div>
                                     </td>
                                 </tr>
-                            ) : partners.length === 0 ? (
+                            ) : filteredPartners.length === 0 ? (
                                 <tr>
                                     <div className="flex justify-center items-center py-8">
-                        <div className="animate-spin border-2 border-[#2596be] dark:border-white !border-l-transparent rounded-full w-8 h-8"></div>
-                    </div>
+                                        <div className="animate-spin border-2 border-[#2596be] dark:border-white !border-l-transparent rounded-full w-8 h-8"></div>
+                                    </div>
                                 </tr>
                             ) : (
-                                partners.map((row, index) => (
+                                filteredPartners.map((row, index) => (
                                     <tr key={row._id}>
                                         <td>{(page - 1) * limit + index + 1}</td>
                                         <td>
                                             {row.PartnerImage ? (
-                                                <img 
-                                                    src={row.PartnerImage} 
+                                                <img
+                                                    src={row.PartnerImage}
                                                     alt={row.PartnerName}
                                                     className="w-12 h-12 rounded-full object-cover"
                                                     onError={(e) => {
@@ -444,8 +498,8 @@ const PartnersList = () => {
                                                     }}
                                                 />
                                             ) : (
-                                                <img 
-                                                    src="/assets/images/user-profile.png" 
+                                                <img
+                                                    src="/assets/images/user-profile.png"
                                                     alt={row.PartnerName}
                                                     className="w-12 h-12 rounded-full object-cover"
                                                 />
@@ -454,35 +508,33 @@ const PartnersList = () => {
                                         <td>
                                             <div className="whitespace-nowrap">{row.PartnerName}</div>
                                         </td>
-                                       <td>
-  <div className="whitespace-nowrap">
-    {row.createdAt
-      ? new Date(row.createdAt).toLocaleString('en-IN', {
-          day: '2-digit',
-          month: 'short',
-          year: 'numeric',
-          hour: '2-digit',
-          minute: '2-digit',
-          hour12: true,
-        })
-      : '-'}
-  </div>
-</td>
+                                        <td>
+                                            <div className="whitespace-nowrap">
+                                                {row.createdAt
+                                                    ? new Date(row.createdAt).toLocaleString('en-IN', {
+                                                        day: '2-digit',
+                                                        month: 'short',
+                                                        year: 'numeric',
+                                                        hour: '2-digit',
+                                                        minute: '2-digit',
+                                                        hour12: true,
+                                                    })
+                                                    : '-'}
+                                            </div>
+                                        </td>
 
                                         <td>
                                             <button
                                                 type="button"
-                                                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                                                    row.disable ? 'bg-red-500' : 'bg-green-500'
-                                                } ${Boolean(togglingPartnerIds[row._id]) ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}`}
+                                                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${row.disable ? 'bg-red-500' : 'bg-green-500'
+                                                    } ${Boolean(togglingPartnerIds[row._id]) ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}`}
                                                 onClick={() => onToggleDisable(row)}
                                                 disabled={Boolean(togglingPartnerIds[row._id])}
                                                 aria-pressed={!row.disable}
                                             >
                                                 <span
-                                                    className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${
-                                                        row.disable ? 'translate-x-0.5' : 'translate-x-5'
-                                                    }`}
+                                                    className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${row.disable ? 'translate-x-0.5' : 'translate-x-5'
+                                                        }`}
                                                 />
                                             </button>
                                         </td>
@@ -536,16 +588,16 @@ const PartnersList = () => {
                                     </div>
 
                                     <form className="p-5 space-y-4" onSubmit={onSubmitForm}>
-                                        
+
 
                                         <div>
                                             <label className="text-white-dark text-xs text-center block">Partner Image</label>
-                                            <div className="space-y-2 text-center">
+                                            <div className=" flex flex-col justify-center items-center space-y-2 text-center">
                                                 {imagePreview && (
                                                     <div className="relative inline-block">
-                                                        <img 
-                                                            src={imagePreview} 
-                                                            alt="Partner preview" 
+                                                        <img
+                                                            src={imagePreview}
+                                                            alt="Partner preview"
                                                             className="w-20 h-20 rounded-full object-cover border"
                                                             onError={(e) => {
                                                                 (e.target as HTMLImageElement).src = "/assets/images/user-profile.png";
@@ -564,15 +616,15 @@ const PartnersList = () => {
                                                     <button
                                                         type="button"
                                                         onClick={() => document.getElementById('partner-image-input')?.click()}
-                                                        className="btn btn-sm btn-outline-primary inline-flex items-center gap-2"
+                                                        className="btn btn-sm btn-outline-primary inline-flex items-center gap-2 rounded-full h-25 w-25"
                                                     >
                                                         <IconEdit />
                                                         Add Image
                                                     </button>
                                                 )}
-                                                <input 
+                                                <input
                                                     id="partner-image-input"
-                                                    type="file" 
+                                                    type="file"
                                                     accept="image/*"
                                                     onChange={handleImageChange}
                                                     className="hidden"

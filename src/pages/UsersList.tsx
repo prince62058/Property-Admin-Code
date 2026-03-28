@@ -3,6 +3,7 @@ import { useDispatch } from 'react-redux';
 import { setPageTitle } from '../store/themeConfigSlice';
 import Swal from 'sweetalert2';
 import { BASE_URL } from '../config';
+import TableHeaderActions from '../components/TableHeaderActions';
 
 type UserItem = {
     _id: string;
@@ -41,6 +42,38 @@ const toast = Swal.mixin({
     showCloseButton: true,
 });
 
+const handleDownload = async (endpoint: string, fileType: "pdf" | "excel" | "csv") => {
+    try {
+        const token = localStorage.getItem('token');
+        const res = await fetch(`${BASE_URL}/${endpoint}`, {
+            method: 'GET',
+            headers: {
+                ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            }
+        });
+        if (!res.ok) {
+            throw new Error(`Failed to download ${fileType}`);
+        }
+        const blob = await res.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        let extension = "pdf";
+        if (fileType === "excel") extension = "xlsx";
+        if (fileType === "csv") extension = "csv";
+
+        a.download = `cities_${new Date().getTime()}.${extension}`;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+        toast.fire({ icon: 'success', title: 'Downloaded successfully' });
+    } catch (error) {
+        console.error(error);
+        toast.fire({ icon: 'error', title: `Failed to download ${fileType}` });
+    }
+};
+
 const UsersList = () => {
     const dispatch = useDispatch();
 
@@ -53,6 +86,8 @@ const UsersList = () => {
     const [page, setPage] = useState(1);
     const [limit] = useState(10);
     const [totalPages, setTotalPages] = useState(1);
+    const [searchQuery, setSearchQuery] = useState("");
+    const [debouncedSearch, setDebouncedSearch] = useState("");
 
     console.log('UsersList rendered');
 
@@ -62,10 +97,25 @@ const UsersList = () => {
     }, [dispatch]);
 
     useEffect(() => {
-        fetchUsers();
-    }, [page, limit]);
+        const handler = setTimeout(() => {
+            setDebouncedSearch(searchQuery);
+            if (searchQuery !== debouncedSearch) {
+                setPage(1);
+            }
+        }, 500);
 
-    const fetchUsers = async (): Promise<void> => {
+        return () => clearTimeout(handler);
+    }, [searchQuery, debouncedSearch]);
+
+    useEffect(() => {
+        const controller = new AbortController();
+        fetchUsers(controller.signal);
+        return () => controller.abort();
+    }, [page, limit, debouncedSearch]);
+
+
+
+    const fetchUsers = async (signal: AbortSignal): Promise<void> => {
         console.log('fetchUsers called');
 
         try {
@@ -83,6 +133,9 @@ const UsersList = () => {
             url.searchParams.set('limit', String(limit));
             url.searchParams.set('sortBy', 'updatedAt');
             url.searchParams.set('sortOrder', 'desc');
+            if (debouncedSearch.trim()) {
+                url.searchParams.set('search', debouncedSearch.trim());
+            }
 
             const response = await fetch(url.toString(), {
                 method: 'GET',
@@ -90,6 +143,7 @@ const UsersList = () => {
                     Accept: 'application/json',
                     Authorization: `Bearer ${token}`
                 },
+                signal,
             });
 
             console.log('Response status:', response.status);
@@ -124,8 +178,10 @@ const UsersList = () => {
             setUsers(Array.isArray(data?.data) ? data.data : []);
             setTotalPages(data?.totalPages || 1);
         } catch (err) {
-            console.error('API ERROR:', err);
-            setError((err as Error)?.message || 'Failed to load data');
+            if ((err as Error).name !== 'AbortError') {
+                console.error('API ERROR:', err);
+                setError((err as Error)?.message || 'Failed to load data');
+            }
         } finally {
             setLoading(false);
         }
@@ -149,7 +205,7 @@ const UsersList = () => {
             const payload = { disable: nextDisable };
 
             const res = await fetch(url, {
-                method: 'PATCH',
+                method: 'PUT',
                 headers: {
                     Accept: 'application/json',
                     'Content-Type': 'application/json',
@@ -189,18 +245,18 @@ const UsersList = () => {
             }
 
             // Show success toast message
-            toast.fire({ 
-                icon: 'success', 
-                title: nextDisable ? 'User disabled successfully' : 'User enabled successfully' 
+            toast.fire({
+                icon: 'success',
+                title: nextDisable ? 'User disabled successfully' : 'User enabled successfully'
             });
         } catch (err) {
             setUsers((prev) => prev.map((u) => (u._id === user._id ? { ...u, disable: Boolean(user.disable) } : u)));
             setError((err as Error)?.message || 'Failed to update status');
-            
+
             // Show error toast message
-            toast.fire({ 
-                icon: 'error', 
-                title: (err as Error)?.message || 'Failed to update user status' 
+            toast.fire({
+                icon: 'error',
+                title: (err as Error)?.message || 'Failed to update user status'
             });
         } finally {
             setTogglingUserIds((prev) => {
@@ -211,13 +267,61 @@ const UsersList = () => {
         }
     };
 
+
+
+
+    const handleDownload = async (endpoint: string, fileType: "pdf" | "excel" | "csv") => {
+        try {
+            const token = localStorage.getItem('token');
+            const res = await fetch(`${BASE_URL}/${endpoint}`, {
+                method: 'GET',
+                headers: {
+                    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                }
+            });
+            if (!res.ok) {
+                throw new Error(`Failed to download ${fileType}`);
+            }
+            const blob = await res.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            let extension = "pdf";
+            if (fileType === "excel") extension = "xlsx";
+            if (fileType === "csv") extension = "csv";
+
+            a.download = `users_${new Date().getTime()}.${extension}`;
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            document.body.removeChild(a);
+            toast.fire({ icon: 'success', title: 'Downloaded successfully' });
+        } catch (error) {
+            console.error(error);
+            toast.fire({ icon: 'error', title: `Failed to download ${fileType}` });
+        }
+    };
+
+
+
+
     return (
         <div>
             <div className="panel">
-                <h5 className="font-semibold text-lg mb-5">
-                    Users
-                </h5>
+                <div className="flex flex-col sm:flex-row items-center justify-between mb-5 gap-4">
+                    <h5 className="font-semibold text-lg">
+                        Users
+                    </h5>
 
+                    <TableHeaderActions
+                        searchQuery={searchQuery}
+                        setSearchQuery={setSearchQuery}
+                        onDownload={handleDownload}
+                        pdfEndpoint="exportUsersPDF"
+                        excelEndpoint="exportUsersExcel"
+                        placeholder="Search users..."
+                    />
+                </div>
                 {loading && (
                     <div className="flex justify-center items-center py-8">
                         <div className="animate-spin border-2 border-[#2596be] dark:border-white !border-l-transparent rounded-full w-8 h-8"></div>

@@ -194,12 +194,12 @@ const Profile = () => {
                             <div className="relative">
                                 <img
                                     src={
-                                        user?.userImage || user?.profileImage || '/assets/images/profile-34.jpeg'
+                                        user?.userImage || user?.profileImage
                                     }
                                     alt="profile"
                                     className="w-28 h-28 rounded-full object-cover border-4 border-white dark:border-[#071126]"
                                 />
-                              
+
                             </div>
 
                             <h3 className="mt-4 text-xl font-semibold text-neutral-900 dark:text-white">
@@ -213,17 +213,17 @@ const Profile = () => {
                                 </Link>
                             </div>
 
-                            
+
                         </div>
 
-                       
+
                     </div>
 
                     {/* Right column: Details */}
                     <div className="lg:col-span-2 panel bg-white dark:bg-[#071126] shadow-md p-6 rounded-lg">
                         <div className="flex items-center justify-between mb-4">
                             <h5 className="font-semibold text-lg dark:text-white-light">Profile Details</h5>
-                            
+
                         </div>
 
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -259,10 +259,10 @@ const Profile = () => {
                                     <div>
                                         <div className="text-sm text-white-dark">Last Updated</div>
                                         <div className="font-semibold text-neutral-900 dark:text-white">
-                                            {user?.updatedAt ? new Date(user.updatedAt).toLocaleDateString('en-US', { 
-                                                year: 'numeric', 
-                                                month: 'long', 
-                                                day: 'numeric' 
+                                            {user?.updatedAt ? new Date(user.updatedAt).toLocaleDateString('en-US', {
+                                                year: 'numeric',
+                                                month: 'long',
+                                                day: 'numeric'
                                             }) : '—'}
                                         </div>
                                     </div>
@@ -276,7 +276,7 @@ const Profile = () => {
                                     </div>
                                 </div>
 
-                               
+
                             </div>
                         </div>
                     </div>

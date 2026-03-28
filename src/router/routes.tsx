@@ -1,5 +1,6 @@
 import { lazy } from 'react';
 import AuthGuard from '../components/AuthGuard';
+import AddOns from '../pages/AddOns';
 const Index = lazy(() => import('../pages/Index'));
 const Analytics = lazy(() => import('../pages/Analytics'));
 const Finance = lazy(() => import('../pages/Finance'));
@@ -124,7 +125,7 @@ const routes = [
     // {
     //     path: '/',
     //     element: <AuthGuard><Index /></AuthGuard>,
-        
+
     // },
     // {
     //     path: '/index',
@@ -452,6 +453,10 @@ const routes = [
     {
         path: '/subadmin',
         element: <Subadmin />,
+    },
+    {
+        path: '/addOns',
+        element: <AddOns />,
     },
     {
         path: '/notifications',

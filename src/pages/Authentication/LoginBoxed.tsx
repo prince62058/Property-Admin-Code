@@ -1,4 +1,4 @@
- import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { setPageTitle, toggleRTL } from '../../store/themeConfigSlice';
@@ -26,12 +26,12 @@ const LoginBoxed = () => {
 
     useEffect(() => {
         dispatch(setPageTitle('Login Boxed'));
-        
+
         // Check if user is already logged in
-        const token = localStorage.getItem('token') || 
-                     localStorage.getItem('token') || 
-                     localStorage.getItem('accessToken');
-        
+        const token = localStorage.getItem('token') ||
+            localStorage.getItem('token') ||
+            localStorage.getItem('accessToken');
+
         if (token) {
             navigate('/auth/boxed-signin');
         }
@@ -52,7 +52,7 @@ const LoginBoxed = () => {
 
     const submitForm = async (e: React.FormEvent) => {
         e.preventDefault();
-        
+
         // Validate credentials
         // if (email !== 'admin@example.com' || password !== 'Admin@123') {
         //     setError('Invalid email or password');
@@ -84,7 +84,7 @@ const LoginBoxed = () => {
             localStorage.setItem('token', json.token);
             localStorage.setItem('permission', json.admin.permission);
             localStorage.setItem('admin', json.admin.id);
-            
+
             // Store user email and name for display in header
             if (json.admin.email) {
                 localStorage.setItem('userEmail', json.admin.email);
@@ -167,37 +167,37 @@ const LoginBoxed = () => {
                                 {error && <div className="text-danger mb-4">{error}</div>}
                                 <div>
                                     <label htmlFor="Email">Email</label>
-                                    <div className="relative text-white-dark">
-                                        <input 
-                                            id="Email" 
-                                            type="email" 
-                                            placeholder="Enter Email" 
-                                            className="form-input ps-10 placeholder:text-white-dark"
+                                    <div className="relative text-white-dark ">
+                                        <input
+                                            id="Email"
+                                            type="email"
+                                            placeholder="Enter Email"
+                                            className="form-input ps-12 pl-10 placeholder:text-white-dark"
                                             value={email}
                                             onChange={(e) => setEmail(e.target.value)}
                                             disabled={loading}
                                         />
-                                        <span className="absolute start-4 top-1/2 -translate-y-1/2">
+                                        {/* <span className="absolute px-3 -start-2 top-1/2 -translate-y-1/2">
                                             <IconMail fill={true} />
-                                        </span>
+                                        </span> */}
                                     </div>
                                 </div>
                                 <div>
                                     <label htmlFor="Password">Password</label>
                                     <div className="relative text-white-dark">
-                                        <input 
-                                            id="Password" 
-                                            type={showPassword ? "text" : "password"} 
-                                            placeholder="Enter Password" 
-                                            className="form-input ps-10 pe-10 placeholder:text-white-dark"
+                                        <input
+                                            id="Password"
+                                            type={showPassword ? "text" : "password"}
+                                            placeholder="Enter Password"
+                                            className="form-input ps-10 pe-12 placeholder:text-white-dark"
                                             value={password}
                                             onChange={(e) => setPassword(e.target.value)}
                                             disabled={loading}
                                         />
-                                        <span className="absolute start-4 top-1/2 -translate-y-1/2">
+                                        {/* <span className="absolute start-4 top-1/2 -translate-y-1/2">
                                             <IconLockDots fill={true} />
-                                        </span>
-                                        <button 
+                                        </span> */}
+                                        <button
                                             type="button"
                                             className="absolute end-4 top-1/2 -translate-y-1/2 text-white-dark hover:text-primary transition-colors"
                                             onClick={() => setShowPassword(!showPassword)}
@@ -220,7 +220,7 @@ const LoginBoxed = () => {
                                         </button>
                                     </div>
                                 </div>
-     
+
                                 <button type="submit" className="btn btn-gradient !mt-6 w-full border-0 uppercase shadow-[0_10px_20px_-10px_rgba(67,97,238,0.44)]" disabled={loading}>
                                     {loading ? 'Signing in...' : 'Sign in'}
                                 </button>

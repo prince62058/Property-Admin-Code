@@ -45,6 +45,7 @@ import IconMapPin from '../Icon/IconMapPin';
 import IconTag from '../Icon/IconTag';
 import IconBell from '../Icon/IconBell';
 
+
 const Sidebar = () => {
     const [currentMenu, setCurrentMenu] = useState<string>('');
     const [errorSubMenu, setErrorSubMenu] = useState(false);
@@ -57,8 +58,8 @@ const Sidebar = () => {
     const semidark = useSelector((state: IRootState) => state.themeConfig.semidark);
     const location = useLocation();
     const dispatch = useDispatch();
-    const permission=localStorage.getItem('permission')
-    console.log("Permission aari h",permission)
+    const permission = localStorage.getItem('permission')
+    console.log("Permission aari h", permission)
     const { t } = useTranslation();
     const toggleMenu = (value: string) => {
         setCurrentMenu((oldValue) => {
@@ -118,7 +119,7 @@ const Sidebar = () => {
                 setUserPermissions(permissions);
                 console.log('User Permissions:', permissions);
             }
-            
+
             // Get admin data for role if needed
             const adminData = localStorage.getItem('admin');
             if (adminData) {
@@ -179,8 +180,8 @@ const Sidebar = () => {
                         </button>
                     </div>
                     <PerfectScrollbar className="h-[calc(100vh-80px)] relative">
-                        <ul className="relative font-semibold space-y-0.5 p-4 py-0">
-                            {hasPermission('dashboard') && (
+                        <ul className="relative font-semibold space-y-0.5 p-4">
+                            {/* {hasPermission('dashboard') && (
                                 <li className="menu nav-item">
                                     <button type="button" className={`${currentMenu === 'dashboard' ? 'active' : ''} nav-link group w-full`} onClick={() => toggleMenu('dashboard')}>
                                         <div className="flex items-center">
@@ -196,24 +197,24 @@ const Sidebar = () => {
 
                                     <AnimateHeight duration={300} height={currentMenu === 'dashboard' ? 'auto' : 0}>
                                         <ul className="sub-menu text-gray-500">
-                                            {/* <li>
+                                            <li>
                                                 <NavLink to="/">{t('sales')}</NavLink>
-                                            </li> */}
-                                            {/* <li>
+                                            </li>
+                                            <li>
                                                 <NavLink to="/analytics">{t('analytics')}</NavLink>
-                                            </li> */}
+                                            </li>
                                             <li>
                                                 <NavLink to="/">{t('finance')}</NavLink>
                                             </li>
-                                            {/* <li>
+                                            <li>
                                                 <NavLink to="/crypto">{t('crypto')}</NavLink>
-                                            </li> */}
+                                            </li>
                                         </ul>
                                     </AnimateHeight>
                                 </li>
-                            )}
+                            )} */}
 
-                            
+
                             {/* <h2 className="py-3 px-7 flex items-center uppercase font-extrabold bg-white-light/30 dark:bg-dark dark:bg-opacity-[0.08] -mx-4 mb-1">
                                 <IconMinus className="w-4 h-5 flex-none hidden" />
                                 <span>{t('apps')}</span>
@@ -611,14 +612,24 @@ const Sidebar = () => {
                                     </ul>
                                 </AnimateHeight>
                             </li> */}
-
+                            {/* 
                             <h2 className="py-3 px-7 flex items-center uppercase font-extrabold bg-white-light/30 dark:bg-dark dark:bg-opacity-[0.08] -mx-4 mb-1">
                                 <IconMinus className="w-4 h-5 flex-none hidden" />
-                                <span>MANAGEMENT</span>
-                            </h2>
+                            </h2> */}
 
                             <li className="nav-item">
                                 <ul>
+
+                                    {hasPermission('dashboard') && (
+                                        <li className="nav-item">
+                                            <NavLink to="/" className="group">
+                                                <div className="flex items-center">
+                                                    <IconMenuDashboard className="group-hover:!text-primary shrink-0" />
+                                                    <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Dashboard</span>
+                                                </div>
+                                            </NavLink>
+                                        </li>
+                                    )}
                                     {hasPermission('users') && (
                                         <li className="nav-item">
                                             <NavLink to="/userList" className="group">
@@ -629,6 +640,9 @@ const Sidebar = () => {
                                             </NavLink>
                                         </li>
                                     )}
+
+
+
                                     {hasPermission('properties') && (
                                         <li className="nav-item">
                                             <NavLink to="/properties" className="group">
@@ -679,7 +693,7 @@ const Sidebar = () => {
                                             </NavLink>
                                         </li>
                                     )}
-                                    
+
                                     {hasPermission('categories') && (
                                         <li className="nav-item">
                                             <NavLink to="/categories" className="group">
@@ -746,6 +760,16 @@ const Sidebar = () => {
                                                 <div className="flex items-center">
                                                     <IconBell className="group-hover:!text-primary shrink-0" />
                                                     <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Send Notifications</span>
+                                                </div>
+                                            </NavLink>
+                                        </li>
+                                    )}
+                                    {hasPermission('addOns') && (
+                                        <li className="nav-item">
+                                            <NavLink to="/addOns" className="group">
+                                                <div className="flex items-center">
+                                                    <IconMenuUsers className="group-hover:!text-primary shrink-0" />
+                                                    <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Add Ons</span>
                                                 </div>
                                             </NavLink>
                                         </li>

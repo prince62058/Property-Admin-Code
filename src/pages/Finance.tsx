@@ -25,13 +25,22 @@ type DashboardData = {
         totalUsers: number;
     };
     recentTransactions: {
-        _id: string;
-        transactionId: string;
-        name: string;
-        amount: number;
-        type: string;
-        createdAt: string;
-    }[];
+        data: {
+            _id: string;
+            userId?: { _id: string; name: string };
+            transactionId: string;
+            name: string;
+            amount: number;
+            type: string;
+            createdAt: string;
+        }[];
+        pagination: {
+            page: number;
+            limit: number;
+            total: number;
+            totalPages: number;
+        };
+    };
     propertyTypeDistribution: {
         count: number;
         type: string | null;
@@ -54,8 +63,11 @@ type DashboardData = {
 const Finance = () => {
     const [data, setData] = useState<DashboardData | null>(null);
     const [loading, setLoading] = useState(true);
+    const [transactionPage, setTransactionPage] = useState(1);
+    const [transactionLimit] = useState(5);
+    const [transactionTotalPages, setTransactionTotalPages] = useState(1);
     const dispatch = useDispatch();
-    
+
     // Fallback static data
     const staticData: DashboardData = {
         summary: {
@@ -64,32 +76,40 @@ const Finance = () => {
             totalTransactions: 456,
             totalUsers: 3289
         },
-        recentTransactions: [
-            {
-                _id: '1',
-                transactionId: 'TXN001',
-                name: 'John Doe',
-                amount: 2500,
-                type: 'CREDIT',
-                createdAt: new Date().toISOString()
-            },
-            {
-                _id: '2',
-                transactionId: 'TXN002',
-                name: 'Jane Smith',
-                amount: 1800,
-                type: 'DEBIT',
-                createdAt: new Date(Date.now() - 86400000).toISOString()
-            },
-            {
-                _id: '3',
-                transactionId: 'TXN003',
-                name: 'Mike Johnson',
-                amount: 3200,
-                type: 'CREDIT',
-                createdAt: new Date(Date.now() - 172800000).toISOString()
+        recentTransactions: {
+            data: [
+                {
+                    _id: '1',
+                    transactionId: 'TXN001',
+                    name: 'John Doe',
+                    amount: 2500,
+                    type: 'CREDIT',
+                    createdAt: new Date().toISOString()
+                },
+                {
+                    _id: '2',
+                    transactionId: 'TXN002',
+                    name: 'Jane Smith',
+                    amount: 1800,
+                    type: 'DEBIT',
+                    createdAt: new Date(Date.now() - 86400000).toISOString()
+                },
+                {
+                    _id: '3',
+                    transactionId: 'TXN003',
+                    name: 'Mike Johnson',
+                    amount: 3200,
+                    type: 'CREDIT',
+                    createdAt: new Date(Date.now() - 172800000).toISOString()
+                }
+            ],
+            pagination: {
+                page: 1,
+                limit: 5,
+                total: 3,
+                totalPages: 1
             }
-        ],
+        },
         propertyTypeDistribution: [
             { type: 'Apartment', count: 456 },
             { type: 'House', count: 324 },
@@ -118,11 +138,11 @@ const Finance = () => {
             { status: 'Inactive', count: 79 }
         ]
     };
-    
+
     useEffect(() => {
         dispatch(setPageTitle('Finance'));
         fetchApi();
-    }, []);
+    }, [transactionPage]);
 
     const fetchApi = async () => {
         try {
@@ -130,7 +150,7 @@ const Finance = () => {
             const token = localStorage.getItem('token');
 
             const response = await fetch(
-                `${BASE_URL}/admin/dashboard/stats`,
+                `${BASE_URL}/admin/dashboard/stats?page=${transactionPage}&limit=${transactionLimit}`,
                 {
                     method: 'GET',
                     headers: {
@@ -139,19 +159,19 @@ const Finance = () => {
                     },
                 }
             );
-
             if (!response.ok) {
                 throw new Error('API request failed');
             }
-            
+
             const result = await response.json();
-            
+            console.log(result)
+
             if (result.success && result.data) {
                 // Transform the API data to match our structure
                 const transformedData: DashboardData = {
                     summary: result.data.summary || staticData.summary,
-                    recentTransactions: result.data.recentTransactions || staticData.recentTransactions,
-                    propertyTypeDistribution: result.data.propertyTypeDistribution 
+                    recentTransactions: result.data.recentTransactions || { data: [], pagination: { page: 1, limit: 5, total: 0, totalPages: 1 } },
+                    propertyTypeDistribution: result.data.propertyTypeDistribution
                         ? result.data.propertyTypeDistribution.map((item: any) => ({
                             count: item.count,
                             type: item.type || 'Unknown'
@@ -167,6 +187,7 @@ const Finance = () => {
                         : staticData.propertyStatusCount
                 };
                 setData(transformedData);
+                setTransactionTotalPages(result.data.recentTransactions?.pagination?.totalPages || 1);
             } else {
                 setData(staticData);
             }
@@ -255,7 +276,8 @@ const Finance = () => {
                                 <thead>
                                     <tr>
                                         <th className="ltr:rounded-l-md rtl:rounded-r-md">Transaction ID</th>
-                                        <th>Name</th>
+                                        <th>User Name</th>
+                                        <th>Plan Name</th>
                                         <th>Amount</th>
                                         <th>Type</th>
                                         <th>Date</th>
@@ -263,12 +285,13 @@ const Finance = () => {
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {data?.recentTransactions?.map((transaction) => (
+                                    {data?.recentTransactions?.data.map((transaction: any) => (
                                         <tr key={transaction._id}>
                                             <td className="font-semibold">{transaction.transactionId}</td>
+                                            <td className="whitespace-nowrap">{transaction.userId?.name || '-'}</td>
                                             <td className="whitespace-nowrap">{transaction.name}</td>
                                             <td className={transaction.type === 'CREDIT' ? 'text-success' : 'text-danger'}>
-                                                {transaction.type === 'CREDIT' ? '+' : '-'}${transaction.amount}
+                                                {transaction.type === 'CREDIT' ? '+' : '-'}₹{transaction.amount}
                                             </td>
                                             <td>
                                                 <span className={`badge ${transaction.type === 'CREDIT' ? 'bg-success/20 text-success' : 'bg-danger/20 text-danger'} rounded-full`}>
@@ -281,15 +304,36 @@ const Finance = () => {
                                             </td>
                                         </tr>
                                     ))}
-                                    {(!data?.recentTransactions || data.recentTransactions.length === 0) && (
+                                    {(!data?.recentTransactions?.data || data.recentTransactions.data.length === 0) && (
                                         <tr>
-                                            <td colSpan={6} className="text-center py-4 text-gray-500">
+                                            <td colSpan={7} className="text-center py-4 text-gray-500">
                                                 No recent transactions found
                                             </td>
                                         </tr>
                                     )}
                                 </tbody>
                             </table>
+                        </div>
+                        <div className="flex items-center justify-end gap-2 mt-4 pt-4 border-t border-[#e0e6ed] dark:border-[#1b2e4b]">
+                            <button
+                                type="button"
+                                className="btn btn-outline-primary btn-sm"
+                                disabled={transactionPage === 1}
+                                onClick={() => setTransactionPage(transactionPage - 1)}
+                            >
+                                Prev
+                            </button>
+                            <span className="text-white-dark text-xs mx-2">
+                                Page {transactionPage} of {transactionTotalPages}
+                            </span>
+                            <button
+                                type="button"
+                                className="btn btn-outline-primary btn-sm"
+                                disabled={transactionPage === transactionTotalPages}
+                                onClick={() => setTransactionPage(transactionPage + 1)}
+                            >
+                                Next
+                            </button>
                         </div>
                     </div>
 
@@ -352,9 +396,9 @@ const Finance = () => {
                                     },
                                     xaxis: {
                                         categories: data.userRegistrationTrend.map(item =>
-                                            new Date(item.date).toLocaleDateString('en-US', { 
-                                                month: 'short', 
-                                                day: 'numeric' 
+                                            new Date(item.date).toLocaleDateString('en-US', {
+                                                month: 'short',
+                                                day: 'numeric'
                                             })
                                         ),
                                     },

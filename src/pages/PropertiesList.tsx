@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useDispatch } from "react-redux";
 import { setPageTitle } from "../store/themeConfigSlice";
 import Swal from "sweetalert2";
-import { X, Edit, Trash2 } from "lucide-react";
+import { X, Edit, Trash2, Calendar, MapPin, Phone, Download } from "lucide-react";
 import { BASE_URL } from "../config";
 
 const toast = Swal.mixin({
@@ -13,30 +13,40 @@ const toast = Swal.mixin({
   showCloseButton: true,
 });
 
+// Dynamic Field Type
+type DynamicField = {
+  _id?: string;
+  title: string;
+  key: string;
+  fieldType: string;
+  options: string[];
+  required: boolean;
+  icon?: string;
+};
+
+// Property Item type with mandatory fields
 type PropertyItem = {
   _id: string;
-  userId?: string;
-  thumbnail?: string;
-  images?: string[];
-  listingType?: string;
   title?: string;
-  propertyCategory?: string | { _id: string; name?: string };
-  area?: string;
-  rentPrice?: number;
+  thumbnail?: string;
+  categoryName: string;
+  images?: string[];
+  negotialble: string;
+  rentType: string;
+  facing: string;
+  listingType?: string;
+  categoryId?:
+  | Array<{
+    _id: string;
+    name?: string;
+    dynamicFields?: DynamicField[];
+  }>
+  | {
+    _id: string;
+    name?: string;
+    dynamicFields?: DynamicField[];
+  };
   price?: number;
-  rentType?: string;
-  negotialble?: string;
-  bedRoom?: number;
-  bathRoom?: number;
-  balconies?: string;
-  buildUpArea?: {
-    value: number;
-    unit: string;
-  };
-  plotSize?: {
-    value: number;
-    unit: string;
-  };
   floorNo?: number;
   totalFloor?: number;
   preferance?: {
@@ -49,76 +59,26 @@ type PropertyItem = {
   };
   description?: string;
   instruction?: string;
-  carPraking?: string;
+  status: string;
   garageSize?: number;
-  facing?: string;
   buildYear?: string;
-  furnished?: string;
-  appliances?: {
-    fridge?: boolean;
-    tv?: boolean;
-    ac?: boolean;
-    gym?: boolean;
-    shower?: boolean;
-    tvCabel?: boolean;
-  };
-  facilities?: {
-    parkingLot?: boolean;
-    gym?: boolean;
-    patAllowed?: boolean;
-    garden?: boolean;
-    park?: boolean;
-  };
+  amenities?: Record<string, boolean>; // For amenities
   location?: string;
-  phoneNumber?: string | number;
-  disable?: boolean;
-  avgRating?: number;
-  totalRating?: number;
-  premium?: boolean;
-  viewers?: Array<{
-    user: string;
-    viewedAt: Date;
-    duration: number;
-  }>;
-  city?: string;
-  categoryId?: Array<{ _id: string; name?: string; type?: string; disable?: boolean; createdAt?: string; updatedAt?: string; categoryImage?: string }> | { _id: string; name?: string; type?: string; disable?: boolean; createdAt?: string; updatedAt?: string; categoryImage?: string };
+  phoneNumber?: string;
   locationCorrdination?: {
     type: string;
     coordinates: [number, number];
   };
-  verified?: boolean;
-  status?: string;
+  disable?: boolean;
+  createdAt?: string;
+  dynamicFieldsData?: Record<string, any>;
   sold?: boolean;
-  user?: {
-    _id: string;
-    name?: string;
-    phoneNumber?: string;
-    permissions?: any[];
-    otp?: string;
-    role?: string;
-    userImage?: string;
-    favoriteProperty?: string[];
-    isOnline?: boolean;
-    createPropertyLimit?: number;
-    hasUsedFreePlan?: boolean;
-    disable?: boolean;
-    isRoleActive?: boolean;
-    createdAt?: string;
-    updatedAt?: string;
-    currentSubscription?: string;
-    subscriptionExpiry?: string;
-    email?: string;
-  };
 };
 
 type CategoryItem = {
   _id: string;
   name?: string;
-};
-
-type CityItem = {
-  _id: string;
-  name?: string;
+  dynamicFields?: DynamicField[];
 };
 
 type PropertiesApiResponse = {
@@ -132,24 +92,19 @@ type PropertiesApiResponse = {
 };
 
 interface PropertyFormData {
+  // Mandatory static fields
   listingType: string;
+  categoryName: string;
   title: string;
   propertyCategory: string;
-  area: string;
-  rentPrice: string;
   price: string;
-  rentType: string;
-  negotialble: string;
-  bedRoom: string;
-  bathRoom: string;
-  balconies: string;
-  buildUpAreaValue: string;
-  buildUpAreaUnit: string;
-  plotSizeValue: string;
-  plotSizeUnit: string;
+  status: string;
   floorNo: string;
   totalFloor: string;
+  facing: string;
   preferanceAll: boolean;
+  negotialble: string;
+  rentType: string;
   preferanceGirl: boolean;
   preferanceBoy: boolean;
   preferanceFamily: boolean;
@@ -157,32 +112,21 @@ interface PropertyFormData {
   preferanceBank: boolean;
   description: string;
   instruction: string;
-  carPraking: string;
   garageSize: string;
-  facing: string;
   buildYear: string;
-  furnished: string;
-  appliancesFridge: boolean;
-  appliancesTv: boolean;
-  appliancesAc: boolean;
-  appliancesGym: boolean;
-  appliancesShower: boolean;
-  appliancesTvCabel: boolean;
-  facilitiesParkingLot: boolean;
-  facilitiesGym: boolean;
-  facilitiesPatAllowed: boolean;
-  facilitiesGarden: boolean;
-  facilitiesPark: boolean;
+  amenities: Record<string, boolean>;
   location: string;
   phoneNumber: string;
-  disable: boolean;
-  thumbNail: File | string | null;
-  images: Array<File | string> | null;
-  city: string;
   lat: string;
   lng: string;
-  premium: boolean;
-  status: string;
+  disable: boolean;
+
+  // Files
+  thumbNail: File | string | null;
+  images: Array<File | string> | null;
+
+  // Dynamic fields values
+  dynamicFields: Record<string, any>;
 }
 
 const PropertiesList = () => {
@@ -197,35 +141,66 @@ const PropertiesList = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
   const [editingProperty, setEditingProperty] = useState<PropertyItem | null>(
-    null
+    null,
   );
   const [togglingPropertyIds, setTogglingPropertyIds] = useState<
     Record<string, boolean>
   >({});
 
   const [categories, setCategories] = useState<CategoryItem[]>([]);
-  const [cities, setCities] = useState<CityItem[]>([]);
   const [categoriesLoading, setCategoriesLoading] = useState(false);
   const [categoriesError, setCategoriesError] = useState<string | null>(null);
 
+  const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (debouncedSearch !== searchQuery) {
+        setDebouncedSearch(searchQuery);
+        setPage(1); // Reset to first page on new search
+      }
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [searchQuery, debouncedSearch]);
+
+  // Store dynamic fields for selected category
+  const [selectedCategoryDynamicFields, setSelectedCategoryDynamicFields] =
+    useState<DynamicField[]>([]);
+
+  // Helper function to check if field type is select type
+  const isSelectField = (fieldType: string) => {
+    return ["SINGLE_SELECT", "MULTI_SELECT", "DROPDOWN"].includes(fieldType);
+  };
+
+  // Default amenities list
+  const defaultAmenities = [
+    "wifi",
+    "parking",
+    "gym",
+    "pool",
+    "elevator",
+    "security",
+    "cctv",
+    "powerBackup",
+    "waterSupply",
+    "garden",
+    "playArea",
+    "clubHouse",
+  ];
+
   const initialFormData: PropertyFormData = {
-    listingType: "",
+    // Mandatory static fields
+    listingType: "SALE",
     title: "",
     propertyCategory: "",
-    area: "",
-    rentPrice: "",
     price: "",
-    rentType: "",
-    negotialble: "",
-    bedRoom: "",
-    bathRoom: "",
-    balconies: "",
-    buildUpAreaValue: "",
-    buildUpAreaUnit: "SQFT",
-    plotSizeValue: "",
-    plotSizeUnit: "SQFT",
     floorNo: "",
+    negotialble: "",
     totalFloor: "",
+    categoryName: "",
+    facing: "",
+    rentType: "",
     preferanceAll: false,
     preferanceGirl: false,
     preferanceBoy: false,
@@ -234,41 +209,43 @@ const PropertiesList = () => {
     preferanceBank: false,
     description: "",
     instruction: "",
-    carPraking: "",
     garageSize: "",
-    facing: "",
     buildYear: "",
-    furnished: "",
-    appliancesFridge: false,
-    appliancesTv: false,
-    appliancesAc: false,
-    appliancesGym: false,
-    appliancesShower: false,
-    appliancesTvCabel: false,
-    facilitiesParkingLot: false,
-    facilitiesGym: false,
-    facilitiesPatAllowed: false,
-    facilitiesGarden: false,
-    facilitiesPark: false,
+    amenities: {},
     location: "",
     phoneNumber: "",
-    disable: false,
-    thumbNail: null,
-    images: null,
-    city: "",
     lat: "",
     lng: "",
-    premium: false,
+    disable: true,
     status: "",
+
+    // Files
+    thumbNail: null,
+    images: null,
+
+    // Dynamic fields
+    dynamicFields: {},
   };
 
   const [formData, setFormData] = useState<PropertyFormData>(initialFormData);
+
+  // Initialize amenities object on component mount
+  useEffect(() => {
+    const initialAmenities: Record<string, boolean> = {};
+    defaultAmenities.forEach((amenity) => {
+      initialAmenities[amenity] = false;
+    });
+    setFormData((prev) => ({
+      ...prev,
+      amenities: initialAmenities,
+    }));
+  }, []);
 
   useEffect(() => {
     dispatch(setPageTitle("Properties"));
   }, [dispatch]);
 
-  // Fetch categories
+  // Fetch categories with dynamic fields
   useEffect(() => {
     const controller = new AbortController();
     const fetchCategories = async () => {
@@ -276,8 +253,7 @@ const PropertiesList = () => {
       setCategoriesError(null);
       try {
         const token = localStorage.getItem("token");
-        const url =
-          `${BASE_URL}/getAllCategory?page=1&limit=1000`;
+        const url = `${BASE_URL}/getAllCategory?page=1&limit=1000`;
 
         const res = await fetch(url, {
           method: "GET",
@@ -298,11 +274,17 @@ const PropertiesList = () => {
         }
 
         const data = Array.isArray(json.data) ? json.data : [];
-        setCategories(data.map((c: any) => ({ _id: c._id, name: c.name })));
+        setCategories(
+          data.map((c: any) => ({
+            _id: c._id,
+            name: c.name,
+            dynamicFields: c.dynamicFields || [],
+          })),
+        );
       } catch (err) {
         if ((err as Error)?.name !== "AbortError") {
           setCategoriesError(
-            (err as Error)?.message || "Failed to fetch categories"
+            (err as Error)?.message || "Failed to fetch categories",
           );
         }
       } finally {
@@ -315,67 +297,28 @@ const PropertiesList = () => {
     return () => controller.abort();
   }, []);
 
-  // Fetch cities
-  // useEffect(() => {
-  //   const controller = new AbortController();
-  //   const fetchCities = async () => {
-  //     setCitiesLoading(true);
-  //     setCitiesError(null);
-  //     try {
-  //       const token = localStorage.getItem("token");
-  //       const url =
-  //         "https://api.property.framekarts.com/api/v1/getAllCity?page=1&limit=1000";
-
-  //       const res = await fetch(url, {
-  //         method: "GET",
-  //         headers: {
-  //           Accept: "application/json",
-  //           ...(token ? { Authorization: `Bearer ${token}` } : {}),
-  //         },
-  //         signal: controller.signal,
-  //       });
-
-  //       if (!res.ok) {
-  //         throw new Error(`Failed to fetch cities: ${res.status}`);
-  //       }
-
-  //       const json = await res.json();
-  //       if (!json?.success) {
-  //         throw new Error(json?.message || "Failed to fetch cities");
-  //       }
-
-  //       const data = Array.isArray(json.data) ? json.data : [];
-  //       setCities(data.map((c: any) => ({ _id: c._id, name: c.name })));
-  //     } catch (err) {
-  //       if ((err as Error)?.name !== "AbortError") {
-  //         setCitiesError((err as Error)?.message || "Failed to fetch cities");
-  //       }
-  //     } finally {
-  //       setCitiesLoading(false);
-  //     }
-  //   };
-
-  //   fetchCities();
-
-  //   return () => controller.abort();
-  // }, []);
-
-  const controller = new AbortController();
   useEffect(() => {
-    fetchProperties();
-  }, [page, limit]);
+    const controller = new AbortController();
+    fetchProperties(controller.signal);
+    return () => controller.abort();
+  }, [page, limit, debouncedSearch]);
 
-  const fetchProperties = async () => {
+  const fetchProperties = async (signal?: AbortSignal) => {
     setLoading(true);
     setError(null);
     try {
       const token = localStorage.getItem("token");
 
-      const url = new URL(
-        `${BASE_URL}/getAllProperties`
-      );
+      const url = new URL(`${BASE_URL}/getAllProperties`);
       url.searchParams.set("page", String(page));
       url.searchParams.set("limit", String(limit));
+      url.searchParams.set("sort", 'recent');
+
+      if (debouncedSearch) {
+        url.searchParams.set("search", debouncedSearch);
+      }
+
+      console.log('Fetching properties with URL:', url.toString());
 
       const res = await fetch(url.toString(), {
         method: "GET",
@@ -383,7 +326,7 @@ const PropertiesList = () => {
           Accept: "application/json",
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
-        signal: controller.signal,
+        signal: signal,
       });
 
       if (!res.ok) {
@@ -407,8 +350,8 @@ const PropertiesList = () => {
         const suffix = detailsMsg
           ? `: ${detailsMsg}`
           : detailsText
-          ? `: ${detailsText}`
-          : "";
+            ? `: ${detailsText}`
+            : "";
         throw new Error(`Failed to fetch properties (${res.status})${suffix}`);
       }
 
@@ -417,7 +360,16 @@ const PropertiesList = () => {
         throw new Error(json?.message || "Failed to fetch properties");
       }
 
-      setProperties(Array.isArray(json?.data) ? json.data : []);
+      const fetchedProperties = Array.isArray(json?.data) ? json.data : [];
+      const sortedProperties = fetchedProperties.sort((a, b) => {
+        const aCreated = a.createdAt || "";
+        const bCreated = b.createdAt || "";
+        if (aCreated > bCreated) return -1;
+        if (aCreated < bCreated) return 1;
+        return 0;
+      });
+
+      setProperties(sortedProperties);
       setTotalPages(json?.totalPages || 1);
     } catch (err) {
       if ((err as Error)?.name !== "AbortError") {
@@ -427,31 +379,29 @@ const PropertiesList = () => {
       setLoading(false);
     }
   };
-  const onToggleSold = async (property: PropertyItem) => {
-    const nextSold = !Boolean(property.disable || property.sold);
+
+  const onToggleDisable = async (property: PropertyItem) => {
+    const nextDisable = !Boolean(property.disable);
 
     setError(null);
     setTogglingPropertyIds((prev) => ({ ...prev, [property._id]: true }));
     setProperties((prev) =>
       prev.map((p) =>
-        p._id === property._id ? { ...p, disable: nextSold } : p
-      )
+        p._id === property._id ? { ...p, disable: nextDisable } : p,
+      ),
     );
 
     try {
       const token = localStorage.getItem("token");
 
-      const res = await fetch(
-        `${BASE_URL}/disableProperty/${property._id}`,
-        {
-          method: "PUT",
-          headers: {
-            "Content-Type": "application/json",
-            Accept: "application/json",
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          },
-        }
-      );
+      const res = await fetch(`${BASE_URL}/disableProperty/${property._id}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+      });
 
       if (!res.ok) {
         throw new Error(`Failed to update property status: ${res.status}`);
@@ -464,13 +414,13 @@ const PropertiesList = () => {
 
       toast.fire({
         icon: "success",
-        title: nextSold ? "Property disabled" : "Property enabled",
+        title: nextDisable ? "Property disabled" : "Property enabled",
       });
     } catch (err) {
       setProperties((prev) =>
         prev.map((p) =>
-          p._id === property._id ? { ...p, disable: property.disable } : p
-        )
+          p._id === property._id ? { ...p, disable: property.disable } : p,
+        ),
       );
       setError((err as Error)?.message || "Failed to update property status");
 
@@ -487,12 +437,50 @@ const PropertiesList = () => {
     }
   };
 
+  // Function to extract dynamic fields data from property
+  // Function to extract dynamic fields data from property
+  const extractDynamicFieldsData = (property: PropertyItem) => {
+    // First check if the property has dynamicValues directly (from API response)
+    if ((property as any).dynamicValues) {
+      return (property as any).dynamicValues;
+    }
+
+    // Then check dynamicFieldsData
+    if (property.dynamicFieldsData) {
+      return property.dynamicFieldsData;
+    }
+
+    const dynamicFieldsData: Record<string, any> = {};
+
+    const categoryWithFields = categories.find((cat) => {
+      if (property.categoryId) {
+        if (Array.isArray(property.categoryId)) {
+          return property.categoryId.some((c) => c._id === cat._id);
+        } else {
+          return property.categoryId._id === cat._id;
+        }
+      }
+      return false;
+    });
+
+    if (categoryWithFields?.dynamicFields) {
+      categoryWithFields.dynamicFields.forEach((field) => {
+        const value = (property as any)[field.key];
+        if (value !== undefined) {
+          dynamicFieldsData[field.key] = value;
+        }
+      });
+    }
+
+    return dynamicFieldsData;
+  };
   const handleOpen = () => {
     setIsOpen(true);
     setIsEditMode(false);
     setEditingProperty(null);
     setFormData(initialFormData);
-  };      
+    setSelectedCategoryDynamicFields([]);
+  };
 
   const handleEdit = (property: PropertyItem) => {
     setIsOpen(true);
@@ -500,34 +488,62 @@ const PropertiesList = () => {
     setEditingProperty(property);
 
     // Handle categoryId which can be an array or object
-    let categorId = "";
+    let categoryId = "";
+    let categoryDynamicFields: DynamicField[] = [];
+
     if (property.categoryId) {
-      if (Array.isArray(property.categoryId) && property.categoryId.length > 0) {
-        categorId = property.categoryId[0]._id || "";
-      } else if (typeof property.categoryId === "object" && "_id" in property.categoryId) {
-        categorId = property.categoryId._id || "";
+      if (
+        Array.isArray(property.categoryId) &&
+        property.categoryId.length > 0
+      ) {
+        categoryId = property.categoryId[0]._id || "";
+        categoryDynamicFields = property.categoryId[0].dynamicFields || [];
+      } else if (
+        typeof property.categoryId === "object" &&
+        "_id" in property.categoryId
+      ) {
+        categoryId = property.categoryId._id || "";
+        categoryDynamicFields =
+          (property.categoryId as any).dynamicFields || [];
       }
-    } else if (property.propertyCategory && typeof property.propertyCategory === "object") {
-      categorId = (property.propertyCategory as any)._id || "";
+    }
+
+    // Set dynamic fields for selected category
+    setSelectedCategoryDynamicFields(categoryDynamicFields);
+
+    // Extract dynamic fields data
+    const dynamicFieldsData = extractDynamicFieldsData(property);
+
+    // Initialize amenities
+    const initialAmenities: Record<string, boolean> = {};
+    defaultAmenities.forEach((amenity) => {
+      initialAmenities[amenity] = property.amenities?.[amenity] || false;
+    });
+    let categoryNameValue = "";
+    if (property.categoryId) {
+      if (
+        Array.isArray(property.categoryId) &&
+        property.categoryId.length > 0
+      ) {
+        categoryNameValue = property.categoryId[0].name || "";
+      } else if (
+        typeof property.categoryId === "object" &&
+        "name" in property.categoryId
+      ) {
+        categoryNameValue = (property.categoryId as any).name || "";
+      }
     }
 
     setFormData({
-      listingType: property.listingType || "",
+      listingType: property.listingType || "SALE",
       title: property.title || "",
-      propertyCategory: categorId,
-      area: property.area || "",
-      rentPrice: property.rentPrice?.toString() || "",
+      propertyCategory: categoryId,
+      facing: property.facing,
       price: property.price?.toString() || "",
-      rentType: property.rentType || "",
-      negotialble: property.negotialble || "",
-      bedRoom: property.bedRoom?.toString() || "",
-      bathRoom: property.bathRoom?.toString() || "",
-      balconies: property.balconies || "",
-      buildUpAreaValue: property.buildUpArea?.value?.toString() || "",
-      buildUpAreaUnit: property.buildUpArea?.unit || "SQFT",
-      plotSizeValue: property.plotSize?.value?.toString() || "",
-      plotSizeUnit: property.plotSize?.unit || "SQFT",
       floorNo: property.floorNo?.toString() || "",
+      negotialble: property.negotialble,
+      categoryName: categoryNameValue,
+      rentType: property.rentType,
       totalFloor: property.totalFloor?.toString() || "",
       preferanceAll: property.preferance?.all || false,
       preferanceGirl: property.preferance?.girl || false,
@@ -537,36 +553,266 @@ const PropertiesList = () => {
       preferanceBank: property.preferance?.bank || false,
       description: property.description || "",
       instruction: property.instruction || "",
-      carPraking: property.carPraking || "",
       garageSize: property.garageSize?.toString() || "",
-      facing: property.facing || "",
       buildYear: property.buildYear || "",
-      furnished: property.furnished || "",
-      appliancesFridge: property.appliances?.fridge || false,
-      appliancesTv: property.appliances?.tv || false,
-      appliancesAc: property.appliances?.ac || false,
-      appliancesGym: property.appliances?.gym || false,
-      appliancesShower: property.appliances?.shower || false,
-      appliancesTvCabel: property.appliances?.tvCabel || false,
-      facilitiesParkingLot: property.facilities?.parkingLot || false,
-      facilitiesGym: property.facilities?.gym || false,
-      facilitiesPatAllowed: property.facilities?.patAllowed || false,
-      facilitiesGarden: property.facilities?.garden || false,
-      facilitiesPark: property.facilities?.park || false,
+      amenities: initialAmenities,
+      status: property.status,
       location: property.location || "",
-      phoneNumber: property.phoneNumber?.toString() || "",
+      phoneNumber: property.phoneNumber || "",
+      lat: property.locationCorrdination?.coordinates?.[1]?.toString() || "",
+      lng: property.locationCorrdination?.coordinates?.[0]?.toString() || "",
       disable: property.disable || false,
       thumbNail: property.thumbnail || null,
       images:
         property.images && Array.isArray(property.images)
           ? property.images
           : null,
-      city: property.city || "",
-      lat: property.locationCorrdination?.coordinates?.[1]?.toString() || "",
-      lng: property.locationCorrdination?.coordinates?.[0]?.toString() || "",
-      premium: property.premium || false,
-      status: property.status || "",
+      dynamicFields: dynamicFieldsData,
     });
+  };
+
+  // Handle category change - update dynamic fields
+  // Handle category change - update dynamic fields
+  const handleCategoryChange = (categoryId: string) => {
+    const selectedCategory = categories.find((c) => c._id === categoryId);
+    const dynamicFields = selectedCategory?.dynamicFields || [];
+
+    setSelectedCategoryDynamicFields(dynamicFields);
+
+    // Reset dynamic fields values when category changes
+    const newDynamicFields: Record<string, any> = {};
+    dynamicFields.forEach((field) => {
+      switch (field.fieldType) {
+        case "TEXT":
+        case "STRING_INPUT":
+        case "AREA_INPUT":
+        case "LENGTH_INPUT":
+          newDynamicFields[field.key] = "";
+          break;
+        case "NUMBER":
+        case "INTEGER_INPUT":
+          newDynamicFields[field.key] = 0;
+          break;
+        case "BOOLEAN":
+          newDynamicFields[field.key] = false;
+          break;
+        case "MULTI_SELECT":
+          newDynamicFields[field.key] = [];
+          break;
+        case "SINGLE_SELECT":
+        case "DROPDOWN":
+          newDynamicFields[field.key] = field.options[0] || "";
+          break;
+        case "DATE":
+          newDynamicFields[field.key] = "";
+          break;
+        case "FILE":
+          newDynamicFields[field.key] = null;
+          break;
+        default:
+          newDynamicFields[field.key] = "";
+      }
+    });
+
+    setFormData((prev) => ({
+      ...prev,
+      propertyCategory: categoryId,
+      dynamicFields: newDynamicFields, // Completely replace with new values
+    }));
+  };
+  // Handle dynamic field value change
+  const handleDynamicFieldChange = (fieldKey: string, value: any) => {
+    setFormData((prev) => ({
+      ...prev,
+      dynamicFields: {
+        ...prev.dynamicFields,
+        [fieldKey]: value,
+      },
+    }));
+  };
+
+  // Handle multi-select dynamic field
+  const handleMultiSelectDynamicChange = (
+    fieldKey: string,
+    option: string,
+    checked: boolean,
+  ) => {
+    setFormData((prev) => {
+      const currentValues = prev.dynamicFields[fieldKey] || [];
+      let newValues;
+
+      if (checked) {
+        newValues = [...currentValues, option];
+      } else {
+        newValues = currentValues.filter((item: string) => item !== option);
+      }
+
+      return {
+        ...prev,
+        dynamicFields: {
+          ...prev.dynamicFields,
+          [fieldKey]: newValues,
+        },
+      };
+    });
+  };
+
+  // Render dynamic field input based on field type
+  const renderDynamicFieldInput = (field: DynamicField) => {
+    const value = formData.dynamicFields[field.key] || "";
+
+    switch (field.fieldType) {
+      case "TEXT":
+      case "STRING_INPUT":
+      case "AREA_INPUT":
+      case "LENGTH_INPUT":
+        return (
+          <input
+            type="text"
+            className="input mt-1"
+            value={value}
+            onChange={(e) =>
+              handleDynamicFieldChange(field.key, e.target.value)
+            }
+            required={field.required}
+            placeholder={`Enter ${field.title.toLowerCase()}`}
+          />
+        );
+
+      case "NUMBER":
+      case "INTEGER_INPUT":
+        return (
+          <input
+            type="number"
+            className="input mt-1"
+            value={value}
+            onChange={(e) =>
+              handleDynamicFieldChange(field.key, Number(e.target.value))
+            }
+            required={field.required}
+            placeholder={`Enter ${field.title}`}
+          />
+        );
+
+      case "BOOLEAN":
+        return (
+          <div className="flex items-center mt-1">
+            <input
+              type="checkbox"
+              id={`dynamic-${field.key}`}
+              className="form-checkbox"
+              checked={!!value}
+              onChange={(e) =>
+                handleDynamicFieldChange(field.key, e.target.checked)
+              }
+            />
+            <label
+              htmlFor={`dynamic-${field.key}`}
+              className="ml-2 cursor-pointer"
+            >
+              {field.title}
+            </label>
+          </div>
+        );
+
+      case "SINGLE_SELECT":
+      case "DROPDOWN":
+        return (
+          <select
+            className="input mt-1"
+            value={value}
+            onChange={(e) =>
+              handleDynamicFieldChange(field.key, e.target.value)
+            }
+            required={field.required}
+          >
+            <option value="">Select {field.title}</option>
+            {field.options.map((option, idx) => (
+              <option key={idx} value={option}>
+                {option}
+              </option>
+            ))}
+          </select>
+        );
+
+      case "MULTI_SELECT":
+        return (
+          <div className="space-y-2 mt-1">
+            {field.options.map((option, idx) => (
+              <div key={idx} className="flex items-center">
+                <input
+                  type="checkbox"
+                  id={`${field.key}-${idx}`}
+                  className="form-checkbox"
+                  checked={Array.isArray(value) && value.includes(option)}
+                  onChange={(e) =>
+                    handleMultiSelectDynamicChange(
+                      field.key,
+                      option,
+                      e.target.checked,
+                    )
+                  }
+                />
+                <label
+                  htmlFor={`${field.key}-${idx}`}
+                  className="ml-2 cursor-pointer"
+                >
+                  {option}
+                </label>
+              </div>
+            ))}
+          </div>
+        );
+
+      case "DATE":
+        return (
+          <div className="relative mt-1">
+            <input
+              type="date"
+              className="input"
+              value={value}
+              onChange={(e) =>
+                handleDynamicFieldChange(field.key, e.target.value)
+              }
+              required={field.required}
+            />
+            <Calendar className="absolute right-3 top-2.5 h-4 w-4 text-gray-400" />
+          </div>
+        );
+
+      case "FILE":
+        return (
+          <div className="mt-1">
+            <input
+              type="file"
+              className="w-full"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) handleDynamicFieldChange(field.key, file);
+              }}
+              required={field.required}
+            />
+            {value && typeof value === "string" && (
+              <div className="text-xs text-gray-500 mt-1">
+                Current file: {value}
+              </div>
+            )}
+          </div>
+        );
+
+      default:
+        return (
+          <input
+            type="text"
+            className="input mt-1"
+            value={value}
+            onChange={(e) =>
+              handleDynamicFieldChange(field.key, e.target.value)
+            }
+            required={field.required}
+          />
+        );
+    }
   };
 
   const handleDelete = async (propertyId: string) => {
@@ -583,16 +829,13 @@ const PropertiesList = () => {
     if (result.isConfirmed) {
       try {
         const token = localStorage.getItem("token");
-        const res = await fetch(
-          `${BASE_URL}/delete/${propertyId}`,
-          {
-            method: "DELETE",
-            headers: {
-              Accept: "application/json",
-              ...(token ? { Authorization: `Bearer ${token}` } : {}),
-            },
-          }
-        );
+        const res = await fetch(`${BASE_URL}/delete/${propertyId}`, {
+          method: "DELETE",
+          headers: {
+            Accept: "application/json",
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+        });
 
         if (!res.ok) {
           throw new Error("Failed to delete property");
@@ -617,7 +860,7 @@ const PropertiesList = () => {
   const handleChange = (
     e: React.ChangeEvent<
       HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
-    >
+    >,
   ) => {
     const { name, value, type } = e.target;
 
@@ -631,6 +874,16 @@ const PropertiesList = () => {
     }
   };
 
+  // const handleAmenityChange = (amenity: string, checked: boolean) => {
+  //   setFormData((prev) => ({
+  //     ...prev,
+  //     amenities: {
+  //       ...prev.amenities,
+  //       [amenity]: checked,
+  //     },
+  //   }));
+  // };
+
   const handleThumbnailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0] || null;
     setFormData((prev) => ({ ...prev, thumbNail: file }));
@@ -641,17 +894,6 @@ const PropertiesList = () => {
     setFormData((prev) => ({ ...prev, images: files }));
   };
 
-  const appendIfExists = (fd: FormData, key: string, value: any) => {
-    if (
-      value !== undefined &&
-      value !== null &&
-      value !== "" &&
-      !(typeof value === "number" && isNaN(value))
-    ) {
-      fd.append(key, value.toString());
-    }
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -659,134 +901,79 @@ const PropertiesList = () => {
       const formDataPayload = new FormData();
       const token = localStorage.getItem("token");
 
-      /* ================= BASIC FIELDS ================= */
-      appendIfExists(formDataPayload, "listingType", formData.listingType);
-      appendIfExists(formDataPayload, "title", formData.title);
-      appendIfExists(formDataPayload, "categoryId", formData.propertyCategory);
-      appendIfExists(formDataPayload, "area", formData.area);
-      appendIfExists(formDataPayload, "rentType", formData.rentType);
-      appendIfExists(formDataPayload, "negotialble", formData.negotialble);
-      appendIfExists(formDataPayload, "description", formData.description);
-      appendIfExists(formDataPayload, "instruction", formData.instruction);
-      appendIfExists(formDataPayload, "carPraking", formData.carPraking);
-      appendIfExists(formDataPayload, "facing", formData.facing);
-      appendIfExists(formDataPayload, "buildYear", formData.buildYear);
-      appendIfExists(formDataPayload, "furnished", formData.furnished);
-      appendIfExists(formDataPayload, "location", formData.location);
-      appendIfExists(formDataPayload, "status", formData.status);
-      appendIfExists(formDataPayload, "city", formData.city);
-
-      /* ================= NUMBERS ================= */
-      appendIfExists(formDataPayload, "rentPrice", formData.rentPrice);
-      appendIfExists(formDataPayload, "price", formData.price);
-      appendIfExists(formDataPayload, "bedRoom", formData.bedRoom);
-      appendIfExists(formDataPayload, "bathRoom", formData.bathRoom);
-      appendIfExists(formDataPayload, "balconies", formData.balconies);
-      appendIfExists(formDataPayload, "floorNo", formData.floorNo);
-      appendIfExists(formDataPayload, "totalFloor", formData.totalFloor);
-      appendIfExists(formDataPayload, "garageSize", formData.garageSize);
-      appendIfExists(formDataPayload, "phoneNumber", formData.phoneNumber);
-
-      /* ================= BOOLEANS ================= */
-      appendIfExists(formDataPayload, "disable", formData.disable);
-      appendIfExists(formDataPayload, "premium", formData.premium);
-
-      /* ================= BUILD UP AREA ================= */
-      if (formData.buildUpAreaValue) {
-        appendIfExists(
-          formDataPayload,
-          "buildUpArea[value]",
-          formData.buildUpAreaValue
-        );
-        appendIfExists(
-          formDataPayload,
-          "buildUpArea[unit]",
-          formData.buildUpAreaUnit
-        );
-      }
-
-      /* ================= PLOT SIZE ================= */
-      if (formData.plotSizeValue) {
-        appendIfExists(
-          formDataPayload,
-          "plotSize[value]",
-          formData.plotSizeValue
-        );
-        appendIfExists(
-          formDataPayload,
-          "plotSize[unit]",
-          formData.plotSizeUnit
-        );
-      }
+      /* ================= MANDATORY STATIC FIELDS ================= */
+      formDataPayload.append("title", formData.title);
+      formDataPayload.append("listingType", formData.listingType);
+      formDataPayload.append("categoryId", formData.propertyCategory);
+      // formDataPayload.append("categoryName", formData.categoryName);
+      formDataPayload.append("price", formData.price);
+      // formDataPayload.append("facing", formData.facing);
+      // formDataPayload.append("floorNo", formData.floorNo);
+      // formDataPayload.append("totalFloor", formData.totalFloor);
+      formDataPayload.append("description", formData.description);
+      formDataPayload.append("instruction", formData.instruction);
+      // formDataPayload.append("garageSize", formData.garageSize);
+      // formDataPayload.append("buildYear", formData.buildYear);
+      formDataPayload.append("location", formData.location);
+      formDataPayload.append("phoneNumber", formData.phoneNumber);
+      // formDataPayload.append("disable", String(formData.disable));
+      formDataPayload.append("role", "ADMIN");
+      formDataPayload.append("lng", formData.lng);
+      formDataPayload.append("lat", formData.lat);
+      formDataPayload.append("negotialble", formData.negotialble);
+      formDataPayload.append("status", formData.status);
 
       /* ================= PREFERENCES ================= */
-      formDataPayload.append("preferance[all]", String(formData.preferanceAll));
-      formDataPayload.append(
-        "preferance[girl]",
-        String(formData.preferanceGirl)
-      );
-      formDataPayload.append("preferance[boy]", String(formData.preferanceBoy));
-      formDataPayload.append(
-        "preferance[family]",
-        String(formData.preferanceFamily)
-      );
-      formDataPayload.append(
-        "preferance[student]",
-        String(formData.preferanceStudent)
-      );
-      formDataPayload.append(
-        "preferance[bank]",
-        String(formData.preferanceBank)
-      );
+      // formDataPayload.append("preferance[all]", String(formData.preferanceAll));
+      // formDataPayload.append(
+      //   "preferance[girl]",
+      //   String(formData.preferanceGirl),
+      // );
+      // formDataPayload.append("preferance[boy]", String(formData.preferanceBoy));
+      // formDataPayload.append(
+      //   "preferance[family]",
+      //   String(formData.preferanceFamily),
+      // );
+      // formDataPayload.append(
+      //   "preferance[student]",
+      //   String(formData.preferanceStudent),
+      // );
+      // formDataPayload.append(
+      //   "preferance[bank]",
+      //   String(formData.preferanceBank),
+      // );
 
-      /* ================= APPLIANCES ================= */
-      formDataPayload.append(
-        "appliances[fridge]",
-        String(formData.appliancesFridge)
-      );
-      formDataPayload.append("appliances[tv]", String(formData.appliancesTv));
-      formDataPayload.append("appliances[ac]", String(formData.appliancesAc));
-      formDataPayload.append("appliances[gym]", String(formData.appliancesGym));
-      formDataPayload.append(
-        "appliances[shower]",
-        String(formData.appliancesShower)
-      );
-      formDataPayload.append(
-        "appliances[tvCabel]",
-        String(formData.appliancesTvCabel)
-      );
-
-      /* ================= FACILITIES ================= */
-      formDataPayload.append(
-        "facilities[parkingLot]",
-        String(formData.facilitiesParkingLot)
-      );
-      formDataPayload.append("facilities[gym]", String(formData.facilitiesGym));
-      formDataPayload.append(
-        "facilities[patAllowed]",
-        String(formData.facilitiesPatAllowed)
-      );
-      formDataPayload.append(
-        "facilities[garden]",
-        String(formData.facilitiesGarden)
-      );
-      formDataPayload.append(
-        "facilities[park]",
-        String(formData.facilitiesPark)
-      );
+      /* ================= AMENITIES ================= */
+      // Object.entries(formData.amenities).forEach(([amenity, value]) => {
+      //   formDataPayload.append(`amenities[${amenity}]`, String(value));
+      // });
 
       /* ================= LOCATION COORDINATES ================= */
-      if (formData.lat && formData.lng) {
-        formDataPayload.append("locationCorrdination[type]", "Point");
-        formDataPayload.append("lng", formData.lng);
-        formDataPayload.append("lat", formData.lat);
-      }
+      // if (formData.lat && formData.lng) {
+      //   formDataPayload.append(
+      //     "locationCorrdination",
+      //     JSON.stringify({
+      //       type: "Point",
+      //       coordinates: [Number(formData.lng), Number(formData.lat)],
+      //     }),
+      //   );
+      // }
+
+      const dynamicValues = { ...formData.dynamicFields };
+
+      Object.entries(dynamicValues).forEach(([key, value]) => {
+        if (value instanceof File) {
+          formDataPayload.append(`dynamicFiles[${key}]`, value);
+          delete dynamicValues[key];
+        }
+      });
+
+      formDataPayload.append("dynamicValues", JSON.stringify(dynamicValues));
 
       /* ================= FILES ================= */
       if (formData.thumbNail && typeof formData.thumbNail !== "string") {
         formDataPayload.append("thumbnail", formData.thumbNail);
       }
-      formDataPayload.append('role', 'ADMIN');
 
       if (formData.images?.length) {
         formData.images.forEach((img) => {
@@ -829,15 +1016,57 @@ const PropertiesList = () => {
       });
     }
   };
-  console.log(properties);
+
+  const handleDownload = async (endpoint: string, fileType: "pdf" | "excel") => {
+    try {
+      const token = localStorage.getItem("token");
+      const res = await fetch(`${BASE_URL}/${endpoint}`, {
+        method: "GET",
+        headers: {
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+      });
+      if (!res.ok) {
+        throw new Error(`Failed to download ${fileType}`);
+      }
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `properties_${new Date().getTime()}.${fileType === "excel" ? "xlsx" : "pdf"
+        }`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      toast.fire({ icon: "success", title: "Downloaded successfully" });
+    } catch (error) {
+      console.error(error);
+      toast.fire({ icon: "error", title: `Failed to download ${fileType}` });
+    }
+  };
+
   return (
     <div>
       <div className="panel">
-        <div className="flex items-center justify-between mb-5">
+        <div className="flex flex-col sm:flex-row items-center justify-between mb-5 gap-4">
           <h5 className="font-semibold text-lg dark:text-white-light">
             Properties
           </h5>
-          <div className="relative">
+          <div className="relative flex items-center gap-3 w-full sm:w-auto">
+            <input
+              type="text"
+              placeholder="Search properties..."
+              className="form-input w-full sm:w-64"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+            <button className="btn btn-outline-danger flex items-center gap-2" onClick={() => handleDownload('properties/export-pdf', 'pdf')}>
+              <Download className="w-4 h-4" /> PDF
+            </button>
+            <button className="btn btn-outline-success flex items-center gap-2" onClick={() => handleDownload('properties/export', 'excel')}>
+              <Download className="w-4 h-4" /> Excel
+            </button>
             <button className="btn btn-primary" onClick={handleOpen}>
               + Add Properties
             </button>
@@ -855,465 +1084,343 @@ const PropertiesList = () => {
                         setIsEditMode(false);
                         setEditingProperty(null);
                         setFormData(initialFormData);
+                        setSelectedCategoryDynamicFields([]);
                       }}
                     />
                   </div>
 
                   <form onSubmit={handleSubmit} className="space-y-6">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {/* Listing Type */}
-                      <div>
-                        <label className="label">Listing Type *</label>
-                        <select
-                          name="listingType"
-                          value={formData.listingType}
-                          onChange={handleChange}
-                          className="input"
-                          required
-                        >
-                          <option value="">Select type</option>
-                          <option value="RENT">Rent</option>
-                          <option value="SALE">Sale</option>
-                          <option value="NEW_PROJECT">New Project</option>
-                        </select>
-                      </div>
+                    {/* SECTION 0: IMAGES */}
+                    <div className="border rounded-lg p-4">
+                      <h3 className="font-semibold mb-4 text-lg">Images</h3>
 
-                      {/* Title */}
-                      <div>
-                        <label className="label">Title *</label>
+                      {/* Thumbnail */}
+                      <div className="mb-6">
+                        <label className="label">Thumbnail Image *</label>
                         <input
-                          name="title"
-                          value={formData.title}
-                          onChange={handleChange}
-                          className="input"
-                          required
+                          type="file"
+                          accept="image/*"
+                          onChange={handleThumbnailChange}
+                          className="w-full"
                         />
-                      </div>
-
-                      {/* Property Category */}
-                      <div>
-                        <label className="label">Property Category *</label>
-                        <select
-                          name="propertyCategory"
-                          value={formData.propertyCategory}
-                          onChange={handleChange}
-                          className="input"
-                          required
-                        >
-                          <option value="">
-                            {categoriesLoading
-                              ? "Loading..."
-                              : "Select category"}
-                          </option>
-                          {categories.map((cat) => (
-                            <option key={cat._id} value={cat._id}>
-                              {cat.name || cat._id}
-                            </option>
-                          ))}
-                        </select>
-                        {categoriesError && (
-                          <div className="text-danger text-sm mt-1">
-                            {categoriesError}
+                        {formData.thumbNail && (
+                          <div className="mt-3">
+                            <img
+                              src={
+                                typeof formData.thumbNail === "string"
+                                  ? formData.thumbNail
+                                  : URL.createObjectURL(formData.thumbNail)
+                              }
+                              alt="Thumbnail Preview"
+                              className="h-48 w-auto rounded-lg object-cover"
+                            />
                           </div>
                         )}
                       </div>
 
-                      {/* Area */}
+                      {/* Multiple Images */}
                       <div>
-                        <label className="label">Area</label>
-                        <select
-                          name="area"
-                          value={formData.area}
-                          onChange={handleChange}
-                          className="input"
-                        >
-                          <option value="">Select area type</option>
-                          <option value="1BHK">1BHK</option>
-                          <option value="2BHK">2BHK</option>
-                          <option value="3BHK">3BHK</option>
-                          <option value="4BHK">4BHK</option>
-                        </select>
-                      </div>
-
-                      {/* Rent Price */}
-                      <div>
-                        <label className="label">Rent Price</label>
+                        <label className="label">Property Images</label>
                         <input
-                          name="rentPrice"
-                          type="number"
-                          value={formData.rentPrice}
-                          onChange={handleChange}
-                          className="input"
+                          type="file"
+                          accept="image/*"
+                          multiple
+                          onChange={handleImagesChange}
+                          className="w-full"
                         />
+                        {formData.images && formData.images.length > 0 && (
+                          <div className="grid grid-cols-3 md:grid-cols-5 gap-3 mt-3">
+                            {formData.images.map((img, idx) => {
+                              const src =
+                                typeof img === "string"
+                                  ? img
+                                  : URL.createObjectURL(img);
+                              return (
+                                <div key={idx} className="relative">
+                                  <img
+                                    src={src}
+                                    className="h-24 w-full object-cover rounded-lg"
+                                    alt={`Property image ${idx + 1}`}
+                                  />
+                                  <button
+                                    type="button"
+                                    className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1"
+                                    onClick={() => {
+                                      const newImages = [...formData.images!];
+                                      newImages.splice(idx, 1);
+                                      setFormData((prev) => ({
+                                        ...prev,
+                                        images: newImages,
+                                      }));
+                                    }}
+                                  >
+                                    <X className="h-3 w-3" />
+                                  </button>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
                       </div>
+                    </div>
+                    {/* SECTION 1: BASIC INFORMATION */}
+                    <div className="border rounded-lg p-4">
+                      <h3 className="font-semibold mb-4 text-lg">
+                        Basic Information
+                      </h3>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {/* Listing Type */}
+                        <div>
+                          <label className="label">Listing Type *</label>
+                          <select
+                            name="listingType"
+                            value={formData.listingType}
+                            onChange={handleChange}
+                            className="input"
+                            required
+                          >
+                            <option value="">Select Listing Type </option>
 
-                      {/* Sale Price */}
-                      <div>
-                        <label className="label">Sale Price</label>
-                        <input
-                          name="price"
-                          type="number"
-                          value={formData.price}
-                          onChange={handleChange}
-                          className="input"
-                        />
-                      </div>
+                            <option value="SALE">Sale</option>
+                            <option value="RENT">Rent</option>
+                          </select>
+                        </div>
 
-                      {/* Rent Type */}
-                      <div>
-                        <label className="label">Rent Type</label>
-                        <select
-                          name="rentType"
-                          value={formData.rentType}
-                          onChange={handleChange}
-                          className="input"
-                        >
-                          <option value="">Select type</option>
-                          <option value="MONTHLY">Monthly</option>
-                          <option value="YEARLY">Yearly</option>
-                        </select>
-                      </div>
+                        {/* Title */}
+                        <div>
+                          <label className="label">Title *</label>
+                          <input
+                            name="title"
+                            value={formData.title}
+                            onChange={handleChange}
+                            className="input"
+                            required
+                            placeholder="Enter property title"
+                          />
+                        </div>
 
-                      {/* Negotiable */}
-                      <div>
-                        <label className="label">Negotiable</label>
-                        <select
-                          name="negotialble"
-                          value={formData.negotialble}
-                          onChange={handleChange}
-                          className="input"
-                        >
-                          <option value="">Select</option>
-                          <option value="NEGOTIABLE">Negotiable</option>
-                          <option value="NONNEGOTIABLE">Non-Negotiable</option>
-                        </select>
-                      </div>
-
-                      {/* Bedrooms */}
-                      <div>
-                        <label className="label">Bedrooms</label>
-                        <select
-                          name="bedRoom"
-                          value={formData.bedRoom}
-                          onChange={handleChange}
-                          className="input"
-                        >
-                          <option value="">Select</option>
-                          <option value="1">1</option>
-                          <option value="2">2</option>
-                          <option value="3">3</option>
-                          <option value="4">4</option>
-                          <option value="5">5</option>
-                        </select>
-                      </div>
-
-                      {/* Bathrooms */}
-                      <div>
-                        <label className="label">Bathrooms</label>
-                        <select
-                          name="bathRoom"
-                          value={formData.bathRoom}
-                          onChange={handleChange}
-                          className="input"
-                        >
-                          <option value="">Select</option>
-                          <option value="1">1</option>
-                          <option value="2">2</option>
-                          <option value="3">3</option>
-                          <option value="4">4</option>
-                          <option value="5">5</option>
-                        </select>
-                      </div>
-
-                      {/* Balconies */}
-                      <div>
-                        <label className="label">Balconies</label>
-                        <select
-                          name="balconies"
-                          value={formData.balconies}
-                          onChange={handleChange}
-                          className="input"
-                        >
-                          <option value="">Select</option>
-                          <option value="1">1</option>
-                          <option value="2">2</option>
-                          <option value="3">3</option>
-                          <option value="4">4</option>
-                          <option value="5">5</option>
-                        </select>
-                      </div>
-
-                      {/* Build Up Area Value */}
-                      <div>
-                        <label className="label">Build Up Area Value</label>
-                        <input
-                          name="buildUpAreaValue"
-                          type="number"
-                          value={formData.buildUpAreaValue}
-                          onChange={handleChange}
-                          className="input"
-                          placeholder="Enter value"
-                        />
-                      </div>
-
-                      {/* Build Up Area Unit */}
-                      <div>
-                        <label className="label">Build Up Area Unit</label>
-                        <select
-                          name="buildUpAreaUnit"
-                          value={formData.buildUpAreaUnit}
-                          onChange={handleChange}
-                          className="input"
-                        >
-                          <option value="SQFT">SQFT</option>
-                          <option value="SQM">SQM</option>
-                        </select>
-                      </div>
-
-                      {/* Plot Size Value */}
-                      <div>
-                        <label className="label">Plot Size Value</label>
-                        <input
-                          name="plotSizeValue"
-                          type="number"
-                          value={formData.plotSizeValue}
-                          onChange={handleChange}
-                          className="input"
-                          placeholder="Enter value"
-                        />
-                      </div>
-
-                      {/* Plot Size Unit */}
-                      <div>
-                        <label className="label">Plot Size Unit</label>
-                        <select
-                          name="plotSizeUnit"
-                          value={formData.plotSizeUnit}
-                          onChange={handleChange}
-                          className="input"
-                        >
-                          <option value="SQFT">SQFT</option>
-                          <option value="SQM">SQM</option>
-                        </select>
-                      </div>
-
-                      {/* Floor No */}
-                      <div>
-                        <label className="label">Floor No</label>
-                        <input
-                          name="floorNo"
-                          type="number"
-                          value={formData.floorNo}
-                          onChange={handleChange}
-                          className="input"
-                        />
-                      </div>
-
-                      {/* Total Floor */}
-                      <div>
-                        <label className="label">Total Floors</label>
-                        <input
-                          name="totalFloor"
-                          type="number"
-                          value={formData.totalFloor}
-                          onChange={handleChange}
-                          className="input"
-                        />
-                      </div>
-
-                      {/* Car Parking */}
-                      <div>
-                        <label className="label">Car Parking</label>
-                        <select
-                          name="carPraking"
-                          value={formData.carPraking}
-                          onChange={handleChange}
-                          className="input"
-                        >
-                          <option value="">Select</option>
-                          <option value="YES">Yes</option>
-                          <option value="NO">No</option>
-                        </select>
-                      </div>
-
-                      {/* Garage Size */}
-                      <div>
-                        <label className="label">Garage Size</label>
-                        <input
-                          name="garageSize"
-                          type="number"
-                          value={formData.garageSize}
-                          onChange={handleChange}
-                          className="input"
-                        />
-                      </div>
-
-                      {/* Facing */}
-                      <div>
-                        <label className="label">Facing Direction</label>
-                        <select
-                          name="facing"
-                          value={formData.facing}
-                          onChange={handleChange}
-                          className="input"
-                        >
-                          <option value="">Select direction</option>
-                          <option value="EAST">East</option>
-                          <option value="WEST">West</option>
-                          <option value="NORTH">North</option>
-                          <option value="SOUTH">South</option>
-                        </select>
-                      </div>
-
-                      {/* Build Year */}
-                      <div>
-                        <label className="label">Build Year</label>
-                        <input
-                          name="buildYear"
-                          value={formData.buildYear}
-                          onChange={handleChange}
-                          className="input"
-                        />
-                      </div>
-
-                      {/* Furnished */}
-                      <div>
-                        <label className="label">Furnished</label>
-                        <select
-                          name="furnished"
-                          value={formData.furnished}
-                          onChange={handleChange}
-                          className="input"
-                        >
-                          <option value="">Select</option>
-                          <option value="FURNISHED">Furnished</option>
-                          <option value="SEMIFURNISHED">Semi-Furnished</option>
-                          <option value="UNFURNISHED">Unfurnished</option>
-                        </select>
-                      </div>
-
-                      {/* City */}
-                      {/* <div>
-                        <label className="label">City</label>
-                        <select
-                          name="city"
-                          value={formData.city}
-                          onChange={handleChange}
-                          className="input"
-                        >
-                          <option value="">{citiesLoading ? "Loading..." : "Select city"}</option>
-                          {cities.map((city) => (
-                            <option key={city._id} value={city._id}>
-                              {city.name || city._id}
+                        {/* Property Category */}
+                        <div>
+                          <label className="label">Category *</label>
+                          <select
+                            name="propertyCategory"
+                            value={formData.propertyCategory}
+                            onChange={(e) =>
+                              handleCategoryChange(e.target.value)
+                            }
+                            className="input"
+                            required
+                          >
+                            <option value="">
+                              {categoriesLoading
+                                ? "Loading..."
+                                : "Select category"}
                             </option>
-                          ))}
-                        </select>
-                        {citiesError && <div className="text-danger text-sm mt-1">{citiesError}</div>}
-                      </div> */}
+                            {categories.map((cat) => (
+                              <option key={cat._id} value={cat._id}>
+                                {cat.name || cat._id}
+                              </option>
+                            ))}
+                          </select>
+                          {categoriesError && (
+                            <div className="text-danger text-sm mt-1">
+                              {categoriesError}
+                            </div>
+                          )}
+                        </div>
+                        {/* category name  */}
+                        {/* <div>
+                          <label className="label">Category Name *</label>
+                          <select
+                            name="categoryName"
+                            value={formData.categoryName}
+                            onChange={(e) =>
+                              setFormData((prev) => ({
+                                ...prev,
+                                categoryName: e.target.value,
+                              }))
+                            }
+                            className="input"
+                            required
+                          >
+                            <option value="">
+                              {categoriesLoading
+                                ? "Loading..."
+                                : "Select category"}
+                            </option>
 
-                      {/* Phone Number */}
-                      <div>
-                        <label className="label">Phone Number</label>
-                        <input
-                          name="phoneNumber"
-                          type="tel"
-                          value={formData.phoneNumber}
-                          onChange={handleChange}
-                          className="input"
-                        />
-                      </div>
+                            {categories.map((cat) => (
+                              <option key={cat._id} value={cat.name}>
+                                {cat.name}
+                              </option>
+                            ))}
+                          </select>
 
-                      {/* Location */}
-                      <div>
-                        <label className="label">Location</label>
-                        <input
-                          name="location"
-                          value={formData.location}
-                          onChange={handleChange}
-                          className="input"
-                        />
-                      </div>
+                          {categoriesError && (
+                            <div className="text-danger text-sm mt-1">
+                              {categoriesError}
+                            </div>
+                          )}
+                        </div> */}
+                        {/* Sale Price */}
+                        <div>
+                          <label className="label">
+                            {formData.listingType === "SALE" ? "Sale" : "Rent"}{" "}
+                            Price *
+                          </label>
+                          <input
+                            name="price"
+                            type="number"
+                            value={formData.price}
+                            onChange={handleChange}
+                            className="input"
+                            required
+                            placeholder="Enter price"
+                          />
+                        </div>
 
-                      {/* Latitude */}
-                      <div>
-                        <label className="label">Latitude</label>
-                        <input
-                          name="lat"
-                          value={formData.lat}
-                          onChange={handleChange}
-                          className="input"
-                        />
-                      </div>
+                        {formData.listingType === "RENT" ? (
+                          <>
+                            <div>
+                              <label className="label">Rent Type*</label>
+                              <select
+                                name="rentType"
+                                value={formData.rentType}
+                                onChange={handleChange}
+                                className="input"
+                                required
+                              >
+                                <option value="">Select Rent Type</option>
 
-                      {/* Longitude */}
-                      <div>
-                        <label className="label">Longitude</label>
-                        <input
-                          name="lng"
-                          value={formData.lng}
-                          onChange={handleChange}
-                          className="input"
-                        />
-                      </div>
+                                <option value="MONTHLY">Monthly</option>
+                                <option value="YEARLY">Yearly</option>
+                              </select>
+                            </div>
+                          </>
+                        ) : (
+                          <></>
+                        )}
 
-                      {/* Premium */}
-                      <div>
-                        <label className="label">Premium Property</label>
-                        <select
-                          name="premium"
-                          value={formData.premium ? "true" : "false"}
-                          onChange={(e) =>
-                            setFormData((prev) => ({
-                              ...prev,
-                              premium: e.target.value === "true",
-                            }))
-                          }
-                          className="input"
-                        >
-                          <option value="false">No</option>
-                          <option value="true">Yes</option>
-                        </select>
-                      </div>
+                        <div>
+                          <label className="label">Status*</label>
+                          <select
+                            name="status"
+                            value={formData.status}
+                            onChange={handleChange}
+                            className="input"
+                            required
+                          >
+                            <option value="">Select Status</option>
+                            <option value="TOP">TOP</option>
+                            <option value="BOTTOM">BOTTOM</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="label">Negotiable*</label>
+                          <select
+                            name="negotialble"
+                            value={formData.negotialble}
+                            onChange={handleChange}
+                            className="input"
+                            required
+                          >
+                            <option value="">Select Negotiablity</option>
 
-                      {/* Status */}
-                      <div>
-                        <label className="label">Status</label>
-                        <select
-                          name="status"
-                          value={formData.status}
-                          onChange={handleChange}
-                          className="input"
-                        >
-                          <option value="">Select status</option>
-                          <option value="TOP">Top</option>
-                          <option value="BOTTOM">Bottom</option>
-                        </select>
-                      </div>
+                            <option value="NEGOTIABLE">Negotiable</option>
+                            <option value="NONNEGOTIABLE">
+                              Non - Negotiable
+                            </option>
+                          </select>
+                        </div>
+                        {/* Floor No */}
+                        {/* <div>
+                          <label className="label">Floor No</label>
+                          <input
+                            name="floorNo"
+                            type="number"
+                            value={formData.floorNo}
+                            onChange={handleChange}
+                            className="input"
+                            placeholder="Enter floor number"
+                          />
+                        </div> */}
 
-                      {/* Disable */}
-                      <div>
-                        <label className="label">Disabled</label>
-                        <select
-                          name="disable"
-                          value={formData.disable ? "true" : "false"}
-                          onChange={(e) =>
-                            setFormData((prev) => ({
-                              ...prev,
-                              disable: e.target.value === "true",
-                            }))
-                          }
-                          className="input"
-                        >
-                          <option value="false">No</option>
-                          <option value="true">Yes</option>
-                        </select>
+                        {/* Total Floor */}
+                        {/* <div>
+                          <label className="label">Total Floors</label>
+                          <input
+                            name="totalFloor"
+                            type="number"
+                            value={formData.totalFloor}
+                            onChange={handleChange}
+                            className="input"
+                            placeholder="Enter total floors"
+                          />
+                        </div> */}
+
+                        {/* Garage Size */}
+                        {/* <div>
+                          <label className="label">Garage Size</label>
+                          <input
+                            name="garageSize"
+                            type="number"
+                            value={formData.garageSize}
+                            onChange={handleChange}
+                            className="input"
+                            placeholder="Enter garage size"
+                          />
+                        </div> */}
+
+                        {/* Build Year */}
+                        {/* <div>
+                          <label className="label">Build Year</label>
+                          <input
+                            name="buildYear"
+                            value={formData.buildYear}
+                            onChange={handleChange}
+                            className="input"
+                            placeholder="YYYY"
+                          />
+                        </div> */}
                       </div>
                     </div>
 
-                    {/* Preferences Section */}
-                    <div className="border rounded-lg p-4">
-                      <h3 className="font-semibold mb-3">Preferences</h3>
-                      <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                    {/* SECTION 2: DYNAMIC FIELDS (from category) */}
+                    {selectedCategoryDynamicFields.length > 0 && (
+                      <div className="border rounded-lg p-4">
+                        <h3 className="font-semibold mb-4 text-lg">
+                          Category Specific Details
+                        </h3>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          {selectedCategoryDynamicFields.map((field) => (
+                            <div
+                              key={field._id || field.key}
+                              className="space-y-1"
+                            >
+                              <label className="label flex items-center gap-2">
+                                {field.title}
+                                {field.required && (
+                                  <span className="text-red-500">*</span>
+                                )}
+                                {field.icon && (
+                                  <span className="text-gray-400">
+                                    ({field.icon})
+                                  </span>
+                                )}
+                              </label>
+                              {renderDynamicFieldInput(field)}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* SECTION 3: PREFERENCES */}
+                    {/* <div className="border rounded-lg p-4">
+                      <h3 className="font-semibold mb-4 text-lg">
+                        Preferences
+                      </h3>
+                      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
                         <div className="flex items-center">
                           <input
                             type="checkbox"
@@ -1375,205 +1482,161 @@ const PropertiesList = () => {
                           <label className="ml-2">Bank</label>
                         </div>
                       </div>
-                    </div>
+                    </div> */}
 
-                    {/* Appliances Section */}
-                    <div className="border rounded-lg p-4">
-                      <h3 className="font-semibold mb-3">Appliances</h3>
-                      <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                        <div className="flex items-center">
-                          <input
-                            type="checkbox"
-                            name="appliancesFridge"
-                            checked={formData.appliancesFridge}
-                            onChange={handleChange}
-                            className="form-checkbox"
-                          />
-                          <label className="ml-2">Fridge</label>
-                        </div>
-                        <div className="flex items-center">
-                          <input
-                            type="checkbox"
-                            name="appliancesTv"
-                            checked={formData.appliancesTv}
-                            onChange={handleChange}
-                            className="form-checkbox"
-                          />
-                          <label className="ml-2">TV</label>
-                        </div>
-                        <div className="flex items-center">
-                          <input
-                            type="checkbox"
-                            name="appliancesAc"
-                            checked={formData.appliancesAc}
-                            onChange={handleChange}
-                            className="form-checkbox"
-                          />
-                          <label className="ml-2">AC</label>
-                        </div>
-                        <div className="flex items-center">
-                          <input
-                            type="checkbox"
-                            name="appliancesGym"
-                            checked={formData.appliancesGym}
-                            onChange={handleChange}
-                            className="form-checkbox"
-                          />
-                          <label className="ml-2">Gym</label>
-                        </div>
-                        <div className="flex items-center">
-                          <input
-                            type="checkbox"
-                            name="appliancesShower"
-                            checked={formData.appliancesShower}
-                            onChange={handleChange}
-                            className="form-checkbox"
-                          />
-                          <label className="ml-2">Shower</label>
-                        </div>
-                        <div className="flex items-center">
-                          <input
-                            type="checkbox"
-                            name="appliancesTvCabel"
-                            checked={formData.appliancesTvCabel}
-                            onChange={handleChange}
-                            className="form-checkbox"
-                          />
-                          <label className="ml-2">TV Cable</label>
-                        </div>
+                    {/* SECTION 4: AMENITIES */}
+                    {/* <div className="border rounded-lg p-4">
+                      <h3 className="font-semibold mb-4 text-lg">Amenities</h3>
+                      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                        {defaultAmenities.map((amenity) => (
+                          <div key={amenity} className="flex items-center">
+                            <input
+                              type="checkbox"
+                              id={`amenity-${amenity}`}
+                              checked={formData.amenities[amenity] || false}
+                              onChange={(e) =>
+                                handleAmenityChange(amenity, e.target.checked)
+                              }
+                              className="form-checkbox"
+                            />
+                            <label
+                              htmlFor={`amenity-${amenity}`}
+                              className="ml-2 capitalize"
+                            >
+                              {amenity.replace(/([A-Z])/g, " $1").trim()}
+                            </label>
+                          </div>
+                        ))}
                       </div>
-                    </div>
+                    </div> */}
 
-                    {/* Facilities Section */}
-                    <div className="border rounded-lg p-4">
-                      <h3 className="font-semibold mb-3">Facilities</h3>
-                      <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                        <div className="flex items-center">
-                          <input
-                            type="checkbox"
-                            name="facilitiesParkingLot"
-                            checked={formData.facilitiesParkingLot}
-                            onChange={handleChange}
-                            className="form-checkbox"
-                          />
-                          <label className="ml-2">Parking Lot</label>
-                        </div>
-                        <div className="flex items-center">
-                          <input
-                            type="checkbox"
-                            name="facilitiesGym"
-                            checked={formData.facilitiesGym}
-                            onChange={handleChange}
-                            className="form-checkbox"
-                          />
-                          <label className="ml-2">Gym</label>
-                        </div>
-                        <div className="flex items-center">
-                          <input
-                            type="checkbox"
-                            name="facilitiesPatAllowed"
-                            checked={formData.facilitiesPatAllowed}
-                            onChange={handleChange}
-                            className="form-checkbox"
-                          />
-                          <label className="ml-2">Pet Allowed</label>
-                        </div>
-                        <div className="flex items-center">
-                          <input
-                            type="checkbox"
-                            name="facilitiesGarden"
-                            checked={formData.facilitiesGarden}
-                            onChange={handleChange}
-                            className="form-checkbox"
-                          />
-                          <label className="ml-2">Garden</label>
-                        </div>
-                        <div className="flex items-center">
-                          <input
-                            type="checkbox"
-                            name="facilitiesPark"
-                            checked={formData.facilitiesPark}
-                            onChange={handleChange}
-                            className="form-checkbox"
-                          />
-                          <label className="ml-2">Park</label>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Description */}
-                    <div>
-                      <label className="label">Description</label>
-                      <textarea
-                        name="description"
-                        rows={4}
-                        value={formData.description}
-                        onChange={handleChange}
-                        className="input"
-                      />
-                    </div>
-
-                    {/* Instruction */}
-                    <div>
-                      <label className="label">Instruction</label>
-                      <textarea
-                        name="instruction"
-                        rows={3}
-                        value={formData.instruction}
-                        onChange={handleChange}
-                        className="input"
-                      />
-                    </div>
-
-                    {/* Thumbnail Upload */}
-                    <div>
-                      <label className="label">Thumbnail Image</label>
-                      <input
-                        type="file"
-                        accept="image/*"
-                        onChange={handleThumbnailChange}
-                        className="w-full"
-                      />
-                      {formData.thumbNail && (
-                        <img
-                          src={
-                            typeof formData.thumbNail === "string"
-                              ? formData.thumbNail
-                              : URL.createObjectURL(formData.thumbNail)
-                          }
-                          alt="Thumbnail Preview"
-                          className="mt-2 h-32 rounded-lg object-cover"
+                    {/* SECTION 5: DESCRIPTION & INSTRUCTION */}
+                    {/* <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div className="space-y-2">
+                        <label className="label">Description *</label>
+                        <textarea
+                          name="description"
+                          rows={4}
+                          value={formData.description}
+                          onChange={handleChange}
+                          className="input"
+                          required
+                          placeholder="Enter property description"
                         />
-                      )}
+                      </div>
+
+                      <div className="space-y-2">
+                        <label className="label">Instruction</label>
+                        <textarea
+                          name="instruction"
+                          rows={4}
+                          value={formData.instruction}
+                          onChange={handleChange}
+                          className="input"
+                          placeholder="Enter instructions for visitors"
+                        />
+                      </div>
+                    </div> */}
+
+                    {/* SECTION 6: LOCATION DETAILS */}
+                    <div className="border rounded-lg p-4">
+                      <h3 className="font-semibold mb-4 text-lg flex items-center gap-2">
+                        <MapPin className="h-5 w-5" /> Location Details
+                      </h3>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <label className="label">Location *</label>
+                          <input
+                            name="location"
+                            value={formData.location}
+                            onChange={handleChange}
+                            className="input"
+                            required
+                            placeholder="Enter complete address"
+                          />
+                        </div>
+
+                        {/* <div>
+                          <label className="label">Facing *</label>
+                          <select
+                            name="facing"
+                            value={formData.facing}
+                            onChange={handleChange}
+                            className="input"
+                            required
+                          >
+                            <option value="EAST">East</option>
+                            <option value="WEST">West</option>
+                            <option value="NORTH">North</option>
+                            <option value="SOUTH">South</option>
+                          </select>
+                        </div> */}
+
+                        <div className="space-y-2">
+                          <label className="label flex items-center gap-2">
+                            Phone Number *
+                          </label>
+                          <input
+                            name="phoneNumber"
+                            type="tel"
+                            value={formData.phoneNumber}
+                            onChange={handleChange}
+                            className="input"
+                            required
+                            placeholder="Enter contact number"
+                            maxLength={10}
+                            pattern="[0-9]{10}"
+                            inputMode="numeric"
+                          />
+                        </div>
+
+                        <div className="space-y-2">
+                          <label className="label">Latitude</label>
+                          <input
+                            name="lat"
+                            value={formData.lat}
+                            onChange={handleChange}
+                            className="input"
+                            placeholder="Enter latitude"
+                          />
+                        </div>
+
+                        <div className="space-y-2">
+                          <label className="label">Longitude</label>
+                          <input
+                            name="lng"
+                            value={formData.lng}
+                            onChange={handleChange}
+                            className="input"
+                            placeholder="Enter longitude"
+                          />
+                        </div>
+                      </div>
                     </div>
 
-                    {/* Multiple Images */}
-                    <div>
-                      <label className="label">Property Images</label>
-                      <input
-                        type="file"
-                        accept="image/*"
-                        multiple
-                        onChange={handleImagesChange}
-                        className="w-full"
-                      />
-                      {formData.images && (
-                        <div className="grid grid-cols-3 md:grid-cols-5 gap-2 mt-2">
-                          {formData.images.map((img, idx) => {
-                            const src =
-                              typeof img === "string" ? img : URL.createObjectURL(img);
-                            return (
-                              <img
-                                key={idx}
-                                src={src}
-                                className="h-24 w-full object-cover rounded-lg"
-                                alt={`Property image ${idx + 1}`}
-                              />
-                            );
-                          })}
+                    {/* SECTION 8: STATUS */}
+                    {/* <div className="border rounded-lg p-4">
+                      <h3 className="font-semibold mb-4 text-lg">Status</h3>
+                      <div className="flex items-center gap-4">
+                        <div className="flex items-center">
+                          <input
+                            type="checkbox"
+                            id="property-disable"
+                            checked={formData.disable}
+                            onChange={(e) =>
+                              setFormData((prev) => ({
+                                ...prev,
+                                disable: e.target.checked,
+                              }))
+                            }
+                            className="form-checkbox"
+                          />
+                          <label htmlFor="property-disable" className="ml-2">
+                            Disable Property
+                          </label>
                         </div>
-                      )}
-                    </div>
+                      </div>
+                    </div> */}
 
                     {/* Buttons */}
                     <div className="flex justify-end gap-3 pt-4 border-t">
@@ -1584,6 +1647,7 @@ const PropertiesList = () => {
                           setIsEditMode(false);
                           setEditingProperty(null);
                           setFormData(initialFormData);
+                          setSelectedCategoryDynamicFields([]);
                         }}
                         className="px-6 py-2 rounded-lg border border-gray-300 hover:bg-gray-50"
                       >
@@ -1612,20 +1676,20 @@ const PropertiesList = () => {
                 <th>S.No</th>
                 <th>Image</th>
                 <th>Title</th>
-                <th>Listing</th>
+                <th>Created At</th>
+                <th>Listing Type</th>
                 <th>Category</th>
+                <th>Sold</th>
+                <th>Price</th>
                 <th>Location</th>
-                <th>Area</th>
-                <th>Rent</th>
-                <th>Bed/Bath</th>
-                <th>Status</th>
+                <th>Admin Status</th>
                 <th>Actions</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={11} className="text-center py-8">
+                  <td colSpan={9} className="text-center py-8">
                     <div className="flex justify-center items-center">
                       <div className="animate-spin border-2 border-black dark:border-white !border-l-transparent rounded-full w-8 h-8"></div>
                     </div>
@@ -1633,93 +1697,123 @@ const PropertiesList = () => {
                 </tr>
               ) : properties.length === 0 ? (
                 <tr>
-                  <td colSpan={11} className="text-center py-8">
+                  <td colSpan={9} className="text-center py-8">
                     No properties found
                   </td>
                 </tr>
               ) : (
-                properties.map((row, index) => (
-                  <tr key={row._id}>
-                    <td>{(page - 1) * limit + index + 1}</td>
-                    <td>
-                      {row.thumbnail && (
-                        <img
-                          src={row.thumbnail}
-                          alt={row.title}
-                          className="w-14 h-10 rounded object-cover"
-                        />
-                      )}
-                    </td>
-                    <td>
-                      <div className="whitespace-nowrap font-medium">
-                        {row?.title || "-"}
-                      </div>
-                    </td>
-                    <td>{row?.listingType || "-"}</td>
-                    <td>{typeof row?.propertyCategory === "object" ? row?.propertyCategory?.name : row?.propertyCategory || "-"}</td>
-                    <td>{row?.location || "-"}</td>
-                    <td>{row?.area || "-"}</td>
-                    <td>
-                      {typeof row.rentPrice === "number" ? (
-                        <div className="whitespace-nowrap font-semibold">
-                          ₹ {row?.rentPrice.toLocaleString()}{" "}
-                          {row?.rentType ? `/${row?.rentType}` : ""}
+                properties.map((row, index) => {
+                  // Get category name
+                  const getCategoryName = () => {
+                    if (row.categoryId) {
+                      if (
+                        Array.isArray(row.categoryId) &&
+                        row.categoryId.length > 0
+                      ) {
+                        return row.categoryId[0].name || "-";
+                      } else if (
+                        typeof row.categoryId === "object" &&
+                        "name" in row.categoryId
+                      ) {
+                        return row.categoryId.name || "-";
+                      }
+                    }
+                    return "-";
+                  };
+
+                  return (
+                    <tr key={row._id}>
+                      <td>{(page - 1) * limit + index + 1}</td>
+                      <td>
+                        {row.thumbnail && (
+                          <img
+                            src={row.thumbnail}
+                            alt={row.title}
+                            className="w-14 h-10 rounded object-cover"
+                            onError={(e) => {
+                              (e.target as HTMLImageElement).src =
+                                "/assets/images/user-profile.png";
+                            }}
+                          />
+                        )}
+                      </td>
+                      <td>
+                        <div className="whitespace-nowrap font-medium">
+                          {row?.title || "-"}
                         </div>
-                      ) : (
-                        "-"
-                      )}
-                    </td>
-                    <td>
-                      {row?.bedRoom || row?.bathRoom ? (
-                        <div className="whitespace-nowrap">
-                          {row?.bedRoom || "0"} Beds / {row?.bathRoom || "0"}{" "}
-                          Baths
+                      </td>
+                      <td>
+                        {row?.createdAt ? (
+                          <div className="whitespace-nowrap">
+                            {new Date(row.createdAt).toLocaleString("en-IN", {
+                              day: "2-digit",
+                              month: "short",
+                              year: "numeric",
+                              hour: "2-digit",
+                              minute: "2-digit",
+                              hour12: true,
+                            })}
+                          </div>
+                        ) : (
+                          "-"
+                        )}
+                      </td>
+                      <td>{row?.listingType || "-"}</td>
+                      <td>{getCategoryName()}</td>
+                      <td>
+                        <span className={`badge ${row?.sold ? 'bg-danger' : 'bg-success'} rounded-full px-3 py-1 text-xs text-white`}>
+                          {row?.sold ? 'Sold Out' : 'Available'}
+                        </span>
+                      </td>
+                      <td>
+                        {row?.price ? (
+                          <div className="whitespace-nowrap font-semibold">
+                            ₹ {row.price.toLocaleString()}
+                          </div>
+                        ) : (
+                          "-"
+                        )}
+                      </td>
+                      <td>{row?.location || "-"}</td>
+                      <td>
+                        <button
+                          type="button"
+                          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${row?.disable ? "bg-red-500" : "bg-green-500"
+                            } ${Boolean(togglingPropertyIds[row?._id])
+                              ? "opacity-60 cursor-not-allowed"
+                              : "cursor-pointer"
+                            }`}
+                          onClick={() => onToggleDisable(row)}
+                          disabled={Boolean(togglingPropertyIds[row?._id])}
+                          aria-pressed={!row?.disable}
+                        >
+                          <span
+                            className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${row?.disable ? "translate-x-0.5" : "translate-x-5"
+                              }`}
+                          />
+                        </button>
+                      </td>
+                      <td>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => handleEdit(row)}
+                            className="btn btn-sm btn-outline-primary"
+                            title="Edit property"
+                          >
+                            <Edit className="h-4 w-4" />
+                          </button>
+                          <button
+                            onClick={() => handleDelete(row._id)}
+                            className="btn btn-sm btn-outline-danger"
+                            title="Delete property"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
                         </div>
-                      ) : (
-                        "-"
-                      )}
-                    </td>
-                    <td>
-                      <button
-                        type="button"
-                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                          row?.disable ? "bg-red-500" : "bg-green-500"
-                        } ${
-                          Boolean(togglingPropertyIds[row?._id])
-                            ? "opacity-60 cursor-not-allowed"
-                            : "cursor-pointer"
-                        }`}
-                        onClick={() => onToggleSold(row)}
-                        disabled={Boolean(togglingPropertyIds[row?._id])}
-                        aria-pressed={!row?.disable}
-                      >
-                        <span
-                          className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${
-                            row?.disable ? "translate-x-0.5" : "translate-x-5"
-                          }`}
-                        />
-                      </button>
-                    </td>
-                    <td>
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => handleEdit(row)}
-                          className="btn btn-sm btn-outline-primary"
-                          title="Edit property"
-                        >
-                          <Edit className="h-4 w-4" />
-                        </button>
-                        <button
-                          onClick={() => handleDelete(row._id)}
-                          className="btn btn-sm btn-outline-danger"
-                          title="Delete property"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>
