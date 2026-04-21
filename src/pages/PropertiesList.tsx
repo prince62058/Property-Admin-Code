@@ -124,6 +124,7 @@ interface PropertyFormData {
   // Files
   thumbNail: File | string | null;
   images: Array<File | string> | null;
+  brochure: File | string | null;
 
   // Dynamic fields values
   dynamicFields: Record<string, any>;
@@ -222,6 +223,7 @@ const PropertiesList = () => {
     // Files
     thumbNail: null,
     images: null,
+    brochure: null,
 
     // Dynamic fields
     dynamicFields: {},
@@ -437,8 +439,7 @@ const PropertiesList = () => {
     }
   };
 
-  // Function to extract dynamic fields data from property
-  // Function to extract dynamic fields data from property
+
   const extractDynamicFieldsData = (property: PropertyItem) => {
     // First check if the property has dynamicValues directly (from API response)
     if ((property as any).dynamicValues) {
@@ -483,6 +484,7 @@ const PropertiesList = () => {
   };
 
   const handleEdit = (property: PropertyItem) => {
+    console.log(property)
     setIsOpen(true);
     setIsEditMode(true);
     setEditingProperty(property);
@@ -568,6 +570,7 @@ const PropertiesList = () => {
           ? property.images
           : null,
       dynamicFields: dynamicFieldsData,
+      brochure: (property as any).brochure || null,
     });
   };
 
@@ -583,10 +586,14 @@ const PropertiesList = () => {
     const newDynamicFields: Record<string, any> = {};
     dynamicFields.forEach((field) => {
       switch (field.fieldType) {
+        case "AREA_INPUT":
+          newDynamicFields[field.key] = { value: "", unit: "sq.ft" };
+          break;
+        case "LENGTH_INPUT":
+          newDynamicFields[field.key] = { value: "", unit: "ft" };
+          break;
         case "TEXT":
         case "STRING_INPUT":
-        case "AREA_INPUT":
-        case "LENGTH_INPUT":
           newDynamicFields[field.key] = "";
           break;
         case "NUMBER":
@@ -658,19 +665,86 @@ const PropertiesList = () => {
   };
 
   // Render dynamic field input based on field type
+  // Helper to extract display value from dynamic field value (handles {unit, value} objects)
+  const getDynamicFieldDisplayValue = (rawValue: any): string => {
+    if (rawValue === null || rawValue === undefined) return "";
+    if (typeof rawValue === "object" && !Array.isArray(rawValue) && !(rawValue instanceof File)) {
+      return rawValue.value !== undefined ? String(rawValue.value) : "";
+    }
+    return String(rawValue);
+  };
+
+  const getDynamicFieldUnit = (rawValue: any): string => {
+    if (rawValue && typeof rawValue === "object" && !Array.isArray(rawValue) && !(rawValue instanceof File)) {
+      return rawValue.unit || "";
+    }
+    return "";
+  };
+
   const renderDynamicFieldInput = (field: DynamicField) => {
-    const value = formData.dynamicFields[field.key] || "";
+    const rawValue = formData.dynamicFields[field.key];
+    const displayValue = getDynamicFieldDisplayValue(rawValue);
+    const unit = getDynamicFieldUnit(rawValue);
 
     switch (field.fieldType) {
-      case "TEXT":
-      case "STRING_INPUT":
       case "AREA_INPUT":
       case "LENGTH_INPUT":
+        return (
+          <div className="flex gap-2 mt-1">
+            <input
+              type="text"
+              className="input"
+              value={displayValue}
+              onChange={(e) =>
+                handleDynamicFieldChange(field.key, {
+                  value: e.target.value,
+                  unit: unit || (field.fieldType === "AREA_INPUT" ? "sq.ft" : "ft"),
+                })
+              }
+              required={field.required}
+              placeholder={`Enter ${field.title.toLowerCase()}`}
+            />
+            <select
+              className="input w-6"
+              value={unit || (field.fieldType === "AREA_INPUT" ? "sq.ft" : "ft")}
+              onChange={(e) =>
+                handleDynamicFieldChange(field.key, {
+                  value: displayValue,
+                  unit: e.target.value,
+                })
+              }
+            >
+              {field.fieldType === "AREA_INPUT" ? (
+                <>
+                  <option value="sq.ft">sq.ft</option>
+                  <option value="sq.m">sq.m</option>
+                  <option value="sq.yd">sq.yd</option>
+                  <option value="acre">acre</option>
+                  <option value="hectare">hectare</option>
+                  <option value="cent">cent</option>
+                  <option value="bigha">bigha</option>
+                  <option value="gunta">gunta</option>
+                </>
+              ) : (
+                <>
+                  <option value="ft">ft</option>
+                  <option value="m">m</option>
+                  <option value="yd">yd</option>
+                  <option value="cm">cm</option>
+                  <option value="inch">inch</option>
+                </>
+              )}
+            </select>
+          </div>
+        );
+
+      case "TEXT":
+      case "STRING_INPUT":
         return (
           <input
             type="text"
             className="input mt-1"
-            value={value}
+            value={displayValue}
             onChange={(e) =>
               handleDynamicFieldChange(field.key, e.target.value)
             }
@@ -685,7 +759,7 @@ const PropertiesList = () => {
           <input
             type="number"
             className="input mt-1"
-            value={value}
+            value={displayValue}
             onChange={(e) =>
               handleDynamicFieldChange(field.key, Number(e.target.value))
             }
@@ -701,7 +775,7 @@ const PropertiesList = () => {
               type="checkbox"
               id={`dynamic-${field.key}`}
               className="form-checkbox"
-              checked={!!value}
+              checked={Boolean(rawValue)}
               onChange={(e) =>
                 handleDynamicFieldChange(field.key, e.target.checked)
               }
@@ -720,7 +794,7 @@ const PropertiesList = () => {
         return (
           <select
             className="input mt-1"
-            value={value}
+            value={displayValue}
             onChange={(e) =>
               handleDynamicFieldChange(field.key, e.target.value)
             }
@@ -736,6 +810,7 @@ const PropertiesList = () => {
         );
 
       case "MULTI_SELECT":
+        const selectedValues = Array.isArray(rawValue) ? rawValue : [];
         return (
           <div className="space-y-2 mt-1">
             {field.options.map((option, idx) => (
@@ -744,7 +819,7 @@ const PropertiesList = () => {
                   type="checkbox"
                   id={`${field.key}-${idx}`}
                   className="form-checkbox"
-                  checked={Array.isArray(value) && value.includes(option)}
+                  checked={selectedValues.includes(option)}
                   onChange={(e) =>
                     handleMultiSelectDynamicChange(
                       field.key,
@@ -770,7 +845,7 @@ const PropertiesList = () => {
             <input
               type="date"
               className="input"
-              value={value}
+              value={displayValue}
               onChange={(e) =>
                 handleDynamicFieldChange(field.key, e.target.value)
               }
@@ -792,9 +867,23 @@ const PropertiesList = () => {
               }}
               required={field.required}
             />
-            {value && typeof value === "string" && (
+            {rawValue && (
               <div className="text-xs text-gray-500 mt-1">
-                Current file: {value}
+                {typeof rawValue === "string" ? (
+                  <>
+                    Current file:{" "}
+                    <a
+                      href={rawValue}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-blue-500 underline"
+                    >
+                      View File
+                    </a>
+                  </>
+                ) : rawValue instanceof File ? (
+                  <>New file selected: {rawValue.name}</>
+                ) : null}
               </div>
             )}
           </div>
@@ -805,7 +894,7 @@ const PropertiesList = () => {
           <input
             type="text"
             className="input mt-1"
-            value={value}
+            value={displayValue}
             onChange={(e) =>
               handleDynamicFieldChange(field.key, e.target.value)
             }
@@ -981,6 +1070,11 @@ const PropertiesList = () => {
             formDataPayload.append("images", img);
           }
         });
+      }
+
+      /* ================= BROCHURE ================= */
+      if (formData.brochure && typeof formData.brochure !== "string") {
+        formDataPayload.append("brochure", formData.brochure);
       }
 
       /* ================= API CALL ================= */
@@ -1163,6 +1257,51 @@ const PropertiesList = () => {
                         )}
                       </div>
                     </div>
+
+                    {/* BROCHURE - Only for NEW_PROJECT */}
+                    {formData.listingType === "NEW_PROJECT" && (
+                      <div className="border rounded-lg p-4">
+                        <h3 className="font-semibold mb-4 text-lg">Brochure</h3>
+                        <div>
+                          <label className="label">Brochure (PDF/Image)</label>
+                          <input
+                            type="file"
+                            accept=".pdf,image/*"
+                            onChange={(e) => {
+                              const file = e.target.files?.[0] || null;
+                              setFormData((prev) => ({ ...prev, brochure: file }));
+                            }}
+                            className="w-full"
+                          />
+                          {formData.brochure && typeof formData.brochure === "string" && (
+                            <div className="mt-3 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                              <p className="text-sm text-gray-600 dark:text-gray-300 mb-2">Current Brochure:</p>
+                              <a
+                                href={formData.brochure}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-2 text-blue-600 hover:text-blue-800 underline text-sm"
+                              >
+                                📄 View Brochure
+                              </a>
+                              {formData.brochure.match(/\.(jpg|jpeg|png|webp|gif)$/i) && (
+                                <img
+                                  src={formData.brochure}
+                                  alt="Brochure Preview"
+                                  className="h-48 w-auto rounded-lg object-cover mt-2"
+                                />
+                              )}
+                            </div>
+                          )}
+                          {formData.brochure && formData.brochure instanceof File && (
+                            <div className="mt-2 text-sm text-green-600">
+                              ✓ New file selected: {formData.brochure.name}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
                     {/* SECTION 1: BASIC INFORMATION */}
                     <div className="border rounded-lg p-4">
                       <h3 className="font-semibold mb-4 text-lg">
@@ -1183,6 +1322,8 @@ const PropertiesList = () => {
 
                             <option value="SALE">Sale</option>
                             <option value="RENT">Rent</option>
+                            <option value="NEW_PROJECT">New Project </option>
+
                           </select>
                         </div>
 
@@ -1397,16 +1538,21 @@ const PropertiesList = () => {
                               key={field._id || field.key}
                               className="space-y-1"
                             >
-                              <label className="label flex items-center gap-2">
-                                {field.title}
-                                {field.required && (
-                                  <span className="text-red-500">*</span>
-                                )}
-                                {field.icon && (
-                                  <span className="text-gray-400">
-                                    ({field.icon})
-                                  </span>
-                                )}
+                              <label className="label flex flex-row w-full items-center gap-2">
+                                <div className="flex flex-row gap-2">
+
+                                  {field.title}
+                                  {field.required && (
+                                    <span className="text-red-500">*</span>
+                                  )}
+                                  {field.icon && (
+                                    // <span className="text-gray-400">
+                                    //   ({field.icon})
+                                    // </span>
+                                    <img src={field.icon} alt={field.title} className="w-5 h-5" />
+                                  )}
+                                </div>
+
                               </label>
                               {renderDynamicFieldInput(field)}
                             </div>

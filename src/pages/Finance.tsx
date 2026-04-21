@@ -27,7 +27,7 @@ type DashboardData = {
     recentTransactions: {
         data: {
             _id: string;
-            userId?: { _id: string; name: string };
+            userId?: { _id: string; name: string; email: string };
             transactionId: string;
             name: string;
             amount: number;
@@ -55,9 +55,9 @@ type DashboardData = {
         type: string;
     }[];
     propertyStatusCount: {
-        count: number;
-        status: string | null;
-    }[];
+        top: { count: number; status: string };
+        bottom: { count: number; status: string };
+    };
 };
 
 const Finance = () => {
@@ -67,77 +67,6 @@ const Finance = () => {
     const [transactionLimit] = useState(5);
     const [transactionTotalPages, setTransactionTotalPages] = useState(1);
     const dispatch = useDispatch();
-
-    // Fallback static data
-    const staticData: DashboardData = {
-        summary: {
-            totalProperties: 1247,
-            totalRequirements: 892,
-            totalTransactions: 456,
-            totalUsers: 3289
-        },
-        recentTransactions: {
-            data: [
-                {
-                    _id: '1',
-                    transactionId: 'TXN001',
-                    name: 'John Doe',
-                    amount: 2500,
-                    type: 'CREDIT',
-                    createdAt: new Date().toISOString()
-                },
-                {
-                    _id: '2',
-                    transactionId: 'TXN002',
-                    name: 'Jane Smith',
-                    amount: 1800,
-                    type: 'DEBIT',
-                    createdAt: new Date(Date.now() - 86400000).toISOString()
-                },
-                {
-                    _id: '3',
-                    transactionId: 'TXN003',
-                    name: 'Mike Johnson',
-                    amount: 3200,
-                    type: 'CREDIT',
-                    createdAt: new Date(Date.now() - 172800000).toISOString()
-                }
-            ],
-            pagination: {
-                page: 1,
-                limit: 5,
-                total: 3,
-                totalPages: 1
-            }
-        },
-        propertyTypeDistribution: [
-            { type: 'Apartment', count: 456 },
-            { type: 'House', count: 324 },
-            { type: 'Villa', count: 189 },
-            { type: 'Commercial', count: 156 },
-            { type: 'Land', count: 122 }
-        ],
-        userRegistrationTrend: [
-            { date: new Date(Date.now() - 604800000).toISOString(), count: 45 },
-            { date: new Date(Date.now() - 518400000).toISOString(), count: 52 },
-            { date: new Date(Date.now() - 432000000).toISOString(), count: 38 },
-            { date: new Date(Date.now() - 345600000).toISOString(), count: 67 },
-            { date: new Date(Date.now() - 259200000).toISOString(), count: 71 },
-            { date: new Date(Date.now() - 172800000).toISOString(), count: 89 },
-            { date: new Date().toISOString(), count: 94 }
-        ],
-        revenueData: [
-            { date: new Date(Date.now() - 259200000).toISOString(), amount: 12500, type: 'Property Sale' },
-            { date: new Date(Date.now() - 172800000).toISOString(), amount: 8900, type: 'Service Fee' },
-            { date: new Date().toISOString(), amount: 15600, type: 'Property Sale' }
-        ],
-        propertyStatusCount: [
-            { status: 'Active', count: 789 },
-            { status: 'Sold', count: 234 },
-            { status: 'Pending', count: 145 },
-            { status: 'Inactive', count: 79 }
-        ]
-    };
 
     useEffect(() => {
         dispatch(setPageTitle('Finance'));
@@ -155,7 +84,7 @@ const Finance = () => {
                     method: 'GET',
                     headers: {
                         'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${token}`,
+                        Authorization: `Bearer ${token}`,
                     },
                 }
             );
@@ -164,45 +93,48 @@ const Finance = () => {
             }
 
             const result = await response.json();
-            console.log(result)
+            console.log(result);
 
             if (result.success && result.data) {
                 // Transform the API data to match our structure
                 const transformedData: DashboardData = {
-                    summary: result.data.summary || staticData.summary,
-                    recentTransactions: result.data.recentTransactions || { data: [], pagination: { page: 1, limit: 5, total: 0, totalPages: 1 } },
-                    propertyTypeDistribution: result.data.propertyTypeDistribution
-                        ? result.data.propertyTypeDistribution.map((item: any) => ({
+                    summary: result.data.summary,
+                    recentTransactions: result.data.recentTransactions,
+                    propertyTypeDistribution: result.data.propertyTypeDistribution.map(
+                        (item: any) => ({
                             count: item.count,
-                            type: item.type || 'Unknown'
-                        }))
-                        : staticData.propertyTypeDistribution,
-                    userRegistrationTrend: result.data.userRegistrationTrend || staticData.userRegistrationTrend,
-                    revenueData: result.data.revenueData || staticData.revenueData,
-                    propertyStatusCount: result.data.propertyStatusCount
-                        ? result.data.propertyStatusCount.map((item: any) => ({
+                            type: item.type || 'Unknown',
+                        })
+                    ),
+                    userRegistrationTrend: result.data.userRegistrationTrend.map(
+                        (item: any) => ({
                             count: item.count,
-                            status: item.status || 'Unknown'
-                        }))
-                        : staticData.propertyStatusCount
+                            date: item.date,
+                        })
+                    ),
+                    revenueData: result.data.revenueData || [],
+                    propertyStatusCount: result.data.propertyStatusCount,
                 };
                 setData(transformedData);
-                setTransactionTotalPages(result.data.recentTransactions?.pagination?.totalPages || 1);
+                setTransactionTotalPages(
+                    result.data.recentTransactions?.pagination?.totalPages || 1
+                );
             } else {
-                setData(staticData);
+                setData(null);
             }
         } catch (error) {
-            console.log('API Error, using fallback data:', error);
-            setData(staticData);
+            console.log('API Error:', error);
+            setData(null);
         } finally {
             setLoading(false);
         }
     };
 
-    // Remove or fix the cryptocurrency chart data since it's not being used
-    // ... (keep your chart options if you need them later, but they're not being used in the current UI)
-
-    const isRtl = useSelector((state: IRootState) => state.themeConfig.rtlClass) === 'rtl' ? true : false;
+    const isRtl = useSelector(
+        (state: IRootState) => state.themeConfig.rtlClass
+    ) === 'rtl'
+        ? true
+        : false;
 
     if (loading) {
         return (
@@ -211,6 +143,33 @@ const Finance = () => {
             </div>
         );
     }
+
+    if (!data) {
+        return (
+            <div className="flex justify-center items-center h-screen">
+                <div className="text-center">
+                    <h2 className="text-2xl font-semibold text-gray-700 dark:text-gray-300">
+                        No Data Available
+                    </h2>
+                    <p className="text-gray-500 dark:text-gray-400 mt-2">
+                        Unable to load dashboard data. Please try again later.
+                    </p>
+                </div>
+            </div>
+        );
+    }
+
+    // Prepare property status data for display (transform top/bottom into array)
+    const propertyStatusList = [
+        {
+            status: data.propertyStatusCount.top.status,
+            count: data.propertyStatusCount.top.count,
+        },
+        {
+            status: data.propertyStatusCount.bottom.status,
+            count: data.propertyStatusCount.bottom.count,
+        },
+    ];
 
     return (
         <div>
@@ -229,40 +188,56 @@ const Finance = () => {
                     {/* Total Properties Card */}
                     <div className="panel bg-gradient-to-r from-cyan-500 to-cyan-400">
                         <div className="flex justify-between">
-                            <div className="ltr:mr-1 rtl:ml-1 text-md font-semibold">Total Properties</div>
+                            <div className="ltr:mr-1 rtl:ml-1 text-md font-semibold">
+                                Total Properties
+                            </div>
                         </div>
                         <div className="flex items-center mt-5">
-                            <div className="text-3xl font-bold ltr:mr-3 rtl:ml-3"> {data?.summary?.totalProperties || 0}</div>
+                            <div className="text-3xl font-bold ltr:mr-3 rtl:ml-3">
+                                {data.summary.totalProperties || 0}
+                            </div>
                         </div>
                     </div>
 
                     {/* Total Requirements Card */}
                     <div className="panel bg-gradient-to-r from-violet-500 to-violet-400">
                         <div className="flex justify-between">
-                            <div className="ltr:mr-1 rtl:ml-1 text-md font-semibold">Total Requirements</div>
+                            <div className="ltr:mr-1 rtl:ml-1 text-md font-semibold">
+                                Total Requirements
+                            </div>
                         </div>
                         <div className="flex items-center mt-5">
-                            <div className="text-3xl font-bold ltr:mr-3 rtl:ml-3"> {data?.summary?.totalRequirements || 0} </div>
+                            <div className="text-3xl font-bold ltr:mr-3 rtl:ml-3">
+                                {data.summary.totalRequirements || 0}
+                            </div>
                         </div>
                     </div>
 
                     {/* Total Transactions Card */}
                     <div className="panel bg-gradient-to-r from-blue-500 to-blue-400">
                         <div className="flex justify-between">
-                            <div className="ltr:mr-1 rtl:ml-1 text-md font-semibold">Total Transactions</div>
+                            <div className="ltr:mr-1 rtl:ml-1 text-md font-semibold">
+                                Total Transactions
+                            </div>
                         </div>
                         <div className="flex items-center mt-5">
-                            <div className="text-3xl font-bold ltr:mr-3 rtl:ml-3"> {data?.summary?.totalTransactions || 0} </div>
+                            <div className="text-3xl font-bold ltr:mr-3 rtl:ml-3">
+                                {data.summary.totalTransactions || 0}
+                            </div>
                         </div>
                     </div>
 
                     {/* Total Users Card */}
                     <div className="panel bg-gradient-to-r from-fuchsia-500 to-fuchsia-400">
                         <div className="flex justify-between">
-                            <div className="ltr:mr-1 rtl:ml-1 text-md font-semibold">Total Users</div>
+                            <div className="ltr:mr-1 rtl:ml-1 text-md font-semibold">
+                                Total Users
+                            </div>
                         </div>
                         <div className="flex items-center mt-5">
-                            <div className="text-3xl font-bold ltr:mr-3 rtl:ml-3"> {data?.summary?.totalUsers || 0} </div>
+                            <div className="text-3xl font-bold ltr:mr-3 rtl:ml-3">
+                                {data.summary.totalUsers || 0}
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -270,43 +245,87 @@ const Finance = () => {
                 <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
                     {/* Recent Transactions */}
                     <div className="panel">
-                        <div className="mb-5 text-lg font-bold">Recent Transactions</div>
+                        <div className="mb-5 text-lg font-bold">
+                            Recent Transactions
+                        </div>
                         <div className="table-responsive">
-                            <table>
+                            <table className="table-hover">
                                 <thead>
                                     <tr>
-                                        <th className="ltr:rounded-l-md rtl:rounded-r-md">Transaction ID</th>
+                                        <th className="ltr:rounded-l-md rtl:rounded-r-md">
+                                            Transaction ID
+                                        </th>
                                         <th>User Name</th>
                                         <th>Plan Name</th>
                                         <th>Amount</th>
                                         <th>Type</th>
                                         <th>Date</th>
-                                        <th className="text-center ltr:rounded-r-md rtl:rounded-l-md">Status</th>
+                                        <th className="text-center ltr:rounded-r-md rtl:rounded-l-md">
+                                            Status
+                                        </th>
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {data?.recentTransactions?.data.map((transaction: any) => (
-                                        <tr key={transaction._id}>
-                                            <td className="font-semibold">{transaction.transactionId}</td>
-                                            <td className="whitespace-nowrap">{transaction.userId?.name || '-'}</td>
-                                            <td className="whitespace-nowrap">{transaction.name}</td>
-                                            <td className={transaction.type === 'CREDIT' ? 'text-success' : 'text-danger'}>
-                                                {transaction.type === 'CREDIT' ? '+' : '-'}₹{transaction.amount}
-                                            </td>
-                                            <td>
-                                                <span className={`badge ${transaction.type === 'CREDIT' ? 'bg-success/20 text-success' : 'bg-danger/20 text-danger'} rounded-full`}>
-                                                    {transaction.type}
-                                                </span>
-                                            </td>
-                                            <td className="whitespace-nowrap">{new Date(transaction.createdAt).toLocaleDateString()}</td>
-                                            <td className="text-center">
-                                                <span className="badge bg-success/20 text-success rounded-full hover:top-0">Completed</span>
-                                            </td>
-                                        </tr>
-                                    ))}
-                                    {(!data?.recentTransactions?.data || data.recentTransactions.data.length === 0) && (
+                                    {data.recentTransactions.data.map(
+                                        (transaction: any) => (
+                                            <tr key={transaction._id}>
+                                                <td className="font-semibold">
+                                                    {transaction.transactionId}
+                                                </td>
+                                                <td className="whitespace-nowrap">
+                                                    {transaction.userId?.name ||
+                                                        '-'}
+                                                </td>
+                                                <td className="whitespace-nowrap">
+                                                    {transaction.name}
+                                                </td>
+                                                <td
+                                                    className={
+                                                        transaction.type ===
+                                                        'CREDIT'
+                                                            ? 'text-success'
+                                                            : 'text-danger'
+                                                    }
+                                                >
+                                                    {transaction.type ===
+                                                    'CREDIT'
+                                                        ? '+'
+                                                        : '-'}
+                                                    ₹{transaction.amount}
+                                                </td>
+                                                <td>
+                                                    <span
+                                                        className={`badge ${
+                                                            transaction.type ===
+                                                            'CREDIT'
+                                                                ? 'bg-success/20 text-success'
+                                                                : 'bg-danger/20 text-danger'
+                                                        } rounded-full`}
+                                                    >
+                                                        {transaction.type}
+                                                    </span>
+                                                </td>
+                                                <td className="whitespace-nowrap">
+                                                    {new Date(
+                                                        transaction.createdAt
+                                                    ).toLocaleDateString()}
+                                                </td>
+                                                <td className="text-center">
+                                                    <span className="badge bg-success/20 text-success rounded-full hover:top-0">
+                                                        Completed
+                                                    </span>
+                                                </td>
+                                            </tr>
+                                        )
+                                    )}
+                                    {(!data.recentTransactions.data ||
+                                        data.recentTransactions.data
+                                            .length === 0) && (
                                         <tr>
-                                            <td colSpan={7} className="text-center py-4 text-gray-500">
+                                            <td
+                                                colSpan={7}
+                                                className="text-center py-4 text-gray-500"
+                                            >
                                                 No recent transactions found
                                             </td>
                                         </tr>
@@ -319,7 +338,9 @@ const Finance = () => {
                                 type="button"
                                 className="btn btn-outline-primary btn-sm"
                                 disabled={transactionPage === 1}
-                                onClick={() => setTransactionPage(transactionPage - 1)}
+                                onClick={() =>
+                                    setTransactionPage(transactionPage - 1)
+                                }
                             >
                                 Prev
                             </button>
@@ -329,8 +350,12 @@ const Finance = () => {
                             <button
                                 type="button"
                                 className="btn btn-outline-primary btn-sm"
-                                disabled={transactionPage === transactionTotalPages}
-                                onClick={() => setTransactionPage(transactionPage + 1)}
+                                disabled={
+                                    transactionPage === transactionTotalPages
+                                }
+                                onClick={() =>
+                                    setTransactionPage(transactionPage + 1)
+                                }
                             >
                                 Next
                             </button>
@@ -339,31 +364,49 @@ const Finance = () => {
 
                     {/* Property Type Distribution */}
                     <div className="panel">
-                        <div className="mb-5 text-lg font-bold">Property Type Distribution</div>
-                        {data?.propertyTypeDistribution && data.propertyTypeDistribution.length > 0 ? (
+                        <div className="mb-5 text-lg font-bold">
+                            Property Type Distribution
+                        </div>
+                        {data.propertyTypeDistribution &&
+                        data.propertyTypeDistribution.length > 0 ? (
                             <ReactApexChart
-                                series={data.propertyTypeDistribution.map(item => item.count)}
+                                series={data.propertyTypeDistribution.map(
+                                    (item) => item.count
+                                )}
                                 options={{
                                     chart: {
                                         type: 'donut',
                                         height: 300,
                                     },
-                                    labels: data.propertyTypeDistribution.map(item => item.type || 'Unknown'),
-                                    colors: ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16'],
+                                    labels: data.propertyTypeDistribution.map(
+                                        (item) => item.type || 'Unknown'
+                                    ),
+                                    colors: [
+                                        '#3b82f6',
+                                        '#10b981',
+                                        '#f59e0b',
+                                        '#ef4444',
+                                        '#8b5cf6',
+                                        '#ec4899',
+                                        '#06b6d4',
+                                        '#84cc16',
+                                    ],
                                     legend: {
                                         position: 'bottom',
                                     },
-                                    responsive: [{
-                                        breakpoint: 480,
-                                        options: {
-                                            chart: {
-                                                width: 200
+                                    responsive: [
+                                        {
+                                            breakpoint: 480,
+                                            options: {
+                                                chart: {
+                                                    width: 200,
+                                                },
+                                                legend: {
+                                                    position: 'bottom',
+                                                },
                                             },
-                                            legend: {
-                                                position: 'bottom'
-                                            }
-                                        }
-                                    }]
+                                        },
+                                    ],
                                 }}
                                 type="donut"
                                 height={300}
@@ -379,32 +422,46 @@ const Finance = () => {
                 <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 mt-6">
                     {/* User Registration Trend */}
                     <div className="panel">
-                        <div className="mb-5 text-lg font-bold">User Registration Trend</div>
-                        {data?.userRegistrationTrend && data.userRegistrationTrend.length > 0 ? (
+                        <div className="mb-5 text-lg font-bold">
+                            User Registration Trend
+                        </div>
+                        {data.userRegistrationTrend &&
+                        data.userRegistrationTrend.length > 0 ? (
                             <ReactApexChart
-                                series={[{
-                                    name: 'Users Registered',
-                                    data: data.userRegistrationTrend.map(item => item.count)
-                                }]}
+                                series={[
+                                    {
+                                        name: 'Users Registered',
+                                        data: data.userRegistrationTrend.map(
+                                            (item) => item.count
+                                        ),
+                                    },
+                                ]}
                                 options={{
                                     chart: {
                                         type: 'line',
                                         height: 300,
                                         toolbar: {
-                                            show: false
-                                        }
+                                            show: false,
+                                        },
                                     },
                                     xaxis: {
-                                        categories: data.userRegistrationTrend.map(item =>
-                                            new Date(item.date).toLocaleDateString('en-US', {
-                                                month: 'short',
-                                                day: 'numeric'
-                                            })
-                                        ),
+                                        categories:
+                                            data.userRegistrationTrend.map(
+                                                (item) =>
+                                                    new Date(
+                                                        item.date
+                                                    ).toLocaleDateString(
+                                                        'en-US',
+                                                        {
+                                                            month: 'short',
+                                                            day: 'numeric',
+                                                        }
+                                                    )
+                                            ),
                                     },
                                     stroke: {
                                         curve: 'smooth',
-                                        width: 3
+                                        width: 3,
                                     },
                                     colors: ['#3b82f6'],
                                     markers: {
@@ -413,20 +470,20 @@ const Finance = () => {
                                         strokeColors: '#fff',
                                         strokeWidth: 2,
                                         hover: {
-                                            size: 7
-                                        }
+                                            size: 7,
+                                        },
                                     },
                                     grid: {
                                         borderColor: '#e5e7eb',
-                                        strokeDashArray: 3
+                                        strokeDashArray: 3,
                                     },
                                     tooltip: {
                                         y: {
                                             formatter: function (val: number) {
-                                                return val + " users"
-                                            }
-                                        }
-                                    }
+                                                return val + ' users';
+                                            },
+                                        },
+                                    },
                                 }}
                                 type="line"
                                 height={300}
@@ -440,18 +497,36 @@ const Finance = () => {
 
                     {/* Property Status Count */}
                     <div className="panel">
-                        <div className="mb-5 text-lg font-bold">Property Status Count</div>
+                        <div className="mb-5 text-lg font-bold">
+                            Property Status Count
+                        </div>
                         <div className="space-y-3">
-                            {data?.propertyStatusCount?.map((item, index) => (
-                                <div key={index} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                            {propertyStatusList.map((item, index) => (
+                                <div
+                                    key={index}
+                                    className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg"
+                                >
                                     <div className="flex items-center">
-                                        <div className={`w-3 h-3 rounded-full ${index % 3 === 0 ? 'bg-info' : index % 3 === 1 ? 'bg-success' : 'bg-warning'} mr-3`}></div>
-                                        <span className="font-medium">{item.status || 'Unknown'}</span>
+                                        <div
+                                            className={`w-3 h-3 rounded-full ${
+                                                index % 3 === 0
+                                                    ? 'bg-info'
+                                                    : index % 3 === 1
+                                                    ? 'bg-success'
+                                                    : 'bg-warning'
+                                            } mr-3`}
+                                        ></div>
+                                        <span className="font-medium">
+                                            {item.status || 'Unknown'}
+                                        </span>
                                     </div>
-                                    <span className="font-bold text-lg">{item.count}</span>
+                                    <span className="font-bold text-lg">
+                                        {item.count}
+                                    </span>
                                 </div>
                             ))}
-                            {(!data?.propertyStatusCount || data.propertyStatusCount.length === 0) && (
+                            {(!propertyStatusList ||
+                                propertyStatusList.length === 0) && (
                                 <div className="text-center py-4 text-gray-500">
                                     No property status data available
                                 </div>
@@ -461,23 +536,35 @@ const Finance = () => {
                 </div>
 
                 {/* Revenue Data - Only show if data exists */}
-                {data?.revenueData && data.revenueData.length > 0 && (
+                {data.revenueData && data.revenueData.length > 0 && (
                     <div className="panel mt-6">
-                        <div className="mb-5 text-lg font-bold">Revenue Data</div>
+                        <div className="mb-5 text-lg font-bold">
+                            Revenue Data
+                        </div>
                         <div className="table-responsive">
-                            <table>
+                            <table className="table-hover">
                                 <thead>
                                     <tr>
-                                        <th className="ltr:rounded-l-md rtl:rounded-r-md">Date</th>
+                                        <th className="ltr:rounded-l-md rtl:rounded-r-md">
+                                            Date
+                                        </th>
                                         <th>Amount</th>
-                                        <th className="text-center ltr:rounded-r-md rtl:rounded-l-md">Type</th>
+                                        <th className="text-center ltr:rounded-r-md rtl:rounded-l-md">
+                                            Type
+                                        </th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {data.revenueData.map((revenue, index) => (
                                         <tr key={index}>
-                                            <td className="whitespace-nowrap">{new Date(revenue.date).toLocaleDateString()}</td>
-                                            <td className="font-semibold">${revenue.amount}</td>
+                                            <td className="whitespace-nowrap">
+                                                {new Date(
+                                                    revenue.date
+                                                ).toLocaleDateString()}
+                                            </td>
+                                            <td className="font-semibold">
+                                                ${revenue.amount}
+                                            </td>
                                             <td className="text-center">
                                                 <span className="badge bg-primary/20 text-primary rounded-full">
                                                     {revenue.type}

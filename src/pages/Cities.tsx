@@ -115,7 +115,7 @@ const Cities = () => {
     return cities.filter((city) => {
       const name = city.name?.toLowerCase() || "";
       const slug = city.slug?.toLowerCase() || "";
-      const pincode = city.pincode?.toLowerCase() || "";
+      const pincode = city.pincode || "";
       const state = city.state?.toLowerCase() || "";
       const country = city.country?.toLowerCase() || "";
 

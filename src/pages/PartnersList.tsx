@@ -7,11 +7,24 @@ import IconX from '../components/Icon/IconX';
 import Swal from 'sweetalert2';
 import { BASE_URL } from '../config';
 import TableHeaderActions from '../components/TableHeaderActions';
+import Select from 'react-select';
 
 type Partner = {
     _id: string;
     PartnerName: string;
     PartnerImage?: string;
+    city?: {
+        _id: string;
+        name?: string;
+        slug?: string;
+        lat?: number;
+        lng?: number;
+        pincode?: string;
+        state?: string;
+        country?: string;
+    };
+    cityId?: string;
+    cities?: string[];
     disable: boolean;
     createdAt: string;
     updatedAt: string;
@@ -63,11 +76,43 @@ const PartnersList = () => {
     const [imagePreview, setImagePreview] = useState<string>('');
     const [isDisabled, setIsDisabled] = useState(false);
     const [saving, setSaving] = useState(false);
+    const [refreshKey, setRefreshKey] = useState(0);
+
+    const [cityOptions, setCityOptions] = useState<any[]>([]);
+    const [selectedCities, setSelectedCities] = useState<any[]>([]);
 
     const [searchQuery, setSearchQuery] = useState("");
     useEffect(() => {
         dispatch(setPageTitle('Partners'));
     }, [dispatch]);
+
+    const handleSelectAllCities = () => {
+        setSelectedCities(cityOptions);
+    };
+
+    const handleDeselectAllCities = () => {
+        setSelectedCities([]);
+    };
+
+    useEffect(() => {
+        const fetchCities = async () => {
+            try {
+                const response = await fetch(`${BASE_URL}/city?limit=1000`);
+                const data = await response.json();
+                if (data.success) {
+                    const citiesArr = (data.data && data.data.cities) || data.cities || [];
+                    const options = citiesArr.map((city: any) => ({
+                        value: city._id,
+                        label: city.name
+                    }));
+                    setCityOptions(options);
+                }
+            } catch (error) {
+                console.error("Error fetching cities", error);
+            }
+        };
+        fetchCities();
+    }, []);
 
     const openCreateForm = () => {
         setFormMode('create');
@@ -76,16 +121,40 @@ const PartnersList = () => {
         setPartnerImage(null);
         setImagePreview('');
         setIsDisabled(false);
+        setSelectedCities([]);
         setIsFormOpen(true);
     };
 
     const openEditForm = (partner: Partner) => {
+        console.log('[PartnersList] Opening edit form for:', partner);
         setFormMode('edit');
         setEditingPartnerId(partner._id);
         setPartnerName(partner.PartnerName || '');
         setImagePreview(partner.PartnerImage || '');
         setPartnerImage(null);
         setIsDisabled(Boolean(partner.disable));
+
+        if (partner.cities && Array.isArray(partner.cities)) {
+            setSelectedCities(
+                partner.cities.map((city: any) => {
+                    // Handle both string IDs and populated objects
+                    const cityId = typeof city === 'string' ? city : city?._id;
+                    const cityName = typeof city === 'string' ? city : (city?.name || city?._id || 'Unknown City');
+
+                    const found = cityOptions.find((opt) => opt.value === cityId);
+                    return found || { value: cityId, label: String(cityName) };
+                })
+            );
+        } else {
+            const legacyCityId = partner?.cityId || (typeof partner.city === 'object' ? partner.city?._id : partner.city) || null;
+            if (legacyCityId) {
+                const cityName = (typeof partner.city === 'object' ? partner.city?.name : null) || legacyCityId;
+                const found = cityOptions.find((opt) => opt.value === legacyCityId);
+                setSelectedCities([found || { value: legacyCityId, label: String(cityName) }]);
+            } else {
+                setSelectedCities([]);
+            }
+        }
         setIsFormOpen(true);
     };
 
@@ -206,12 +275,20 @@ const PartnersList = () => {
                 disable: isDisabled,
             };
 
+            if (selectedCities.length > 0) {
+                payload.cities = selectedCities.map((c: any) => c.value);
+            }
+
             // Add image to payload if selected
             if (partnerImage) {
                 const formData = new FormData();
                 formData.append('PartnerName', trimmedName);
                 formData.append('disable', String(isDisabled));
                 formData.append('PartnerImage', partnerImage);
+
+                if (selectedCities.length > 0) {
+                    formData.append('cities', JSON.stringify(selectedCities.map((c: any) => c.value)));
+                }
 
                 let url = `${BASE_URL}/createPartner`;
                 let method: 'POST' | 'PUT' = 'POST';
@@ -268,7 +345,13 @@ const PartnersList = () => {
 
                 toast.fire({ icon: 'success', title: formMode === 'create' ? 'Partner created successfully' : 'Partner updated successfully' });
                 setIsFormOpen(false);
+                // Ensure UI reflects server response by re-fetching list
+                setRefreshKey((k) => k + 1);
             } else {
+                if (selectedCities.length > 0) {
+                    // Update payload with cities array for JSON submission
+                    payload.cities = selectedCities.map((c: any) => c.value);
+                }
                 // No image selected - send JSON data
                 let url = `${BASE_URL}/createPartner`;
                 let method: 'POST' | 'PUT' = 'POST';
@@ -326,6 +409,8 @@ const PartnersList = () => {
 
                 toast.fire({ icon: 'success', title: formMode === 'create' ? 'Partner created successfully' : 'Partner updated successfully' });
                 setIsFormOpen(false);
+                // Ensure UI reflects server response by re-fetching list
+                setRefreshKey((k) => k + 1);
             }
         } catch (err) {
             console.error('[Partners] submit failed', err);
@@ -390,7 +475,7 @@ const PartnersList = () => {
         return () => {
             controller.abort();
         };
-    }, [page, limit]);
+    }, [page, limit, refreshKey]);
 
     const filteredPartners = partners.filter((p) => {
         const query = searchQuery.trim().toLowerCase();
@@ -417,12 +502,11 @@ const PartnersList = () => {
             const blob = await res.blob();
             const url = window.URL.createObjectURL(blob);
             const a = document.createElement('a');
-            a.href = url; let extension = "pdf";
-
+            a.href = url;
+            let extension = "pdf";
             if (fileType === "excel") extension = "xlsx";
             if (fileType === "csv") extension = "csv";
-
-            a.download = `partners_${new Date().getTime()}.${extension}`; a.download = `partners_${new Date().getTime()}.${fileType === 'excel' ? 'xlsx' : 'pdf'}`;
+            a.download = `partners_${new Date().getTime()}.${extension}`;
             document.body.appendChild(a);
             a.click();
             window.URL.revokeObjectURL(url);
@@ -634,6 +718,28 @@ const PartnersList = () => {
                                         <div>
                                             <label className="text-white-dark text-xs">Partner Name</label>
                                             <input className="form-input" value={partnerName} onChange={(e) => setPartnerName(e.target.value)} type="text" required />
+                                        </div>
+
+                                        <div>
+                                            <div className="flex items-center justify-between">
+                                                <label className="text-white-dark text-xs font-semibold">Cities</label>
+                                                <div className="flex gap-2 mb-1">
+                                                    <button type="button" onClick={handleSelectAllCities} className="text-[10px] text-primary hover:underline font-bold">
+                                                        Select All
+                                                    </button>
+                                                    <span className="text-gray-300">|</span>
+                                                    <button type="button" onClick={handleDeselectAllCities} className="text-[10px] text-danger hover:underline font-bold">
+                                                        Clear All
+                                                    </button>
+                                                </div>
+                                            </div>
+                                            <Select
+                                                isMulti
+                                                options={cityOptions}
+                                                value={selectedCities}
+                                                onChange={(selected) => setSelectedCities(selected as any[])}
+                                                className="text-black dark:text-black"
+                                            />
                                         </div>
 
                                         {/* <div className="flex items-center gap-2">

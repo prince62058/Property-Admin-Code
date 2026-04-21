@@ -8,7 +8,8 @@ import IconPlus from '../components/Icon/IconPlus';
 import IconTrash from '../components/Icon/IconTrash';
 import Swal from 'sweetalert2';
 import { BASE_URL } from "../config";
-import { Trash, Download } from 'lucide-react';
+import { Download, Trash } from 'lucide-react';
+import Select from 'react-select';
 import TableHeaderActions from '../components/TableHeaderActions';
 
 type DynamicField = {
@@ -26,6 +27,7 @@ type CategoryItem = {
     type?: string;
     categoryImage?: string;
     disable?: boolean;
+    cities?: string[];
     dynamicFields?: DynamicField[];
     createdAt?: string;
     updatedAt?: string;
@@ -84,6 +86,9 @@ const CategoriesList = () => {
     const [deleteDialog, setDeleteDialog] = useState(false);
     const [categoryToDelete, setCategoryToDelete] = useState<CategoryItem | null>(null);
 
+    const [cityOptions, setCityOptions] = useState<any[]>([]);
+    const [selectedCities, setSelectedCities] = useState<any[]>([]);
+
     const [searchQuery, setSearchQuery] = useState("");
     const [debouncedSearch, setDebouncedSearch] = useState("");
     const [selectedTypeFilter, setSelectedTypeFilter] = useState<'ALL' | 'SALE' | 'RENT' | 'NEW_PROJECT'>('ALL');
@@ -113,14 +118,43 @@ const CategoriesList = () => {
     };
 
     useEffect(() => {
+        const fetchCities = async () => {
+            try {
+                const response = await fetch(`${BASE_URL}/city?limit=1000`);
+                const data = await response.json();
+                if (data.success) {
+                    const citiesArr = (data.data && data.data.cities) || data.cities || [];
+                    const options = citiesArr.map((city: any) => ({
+                        value: city._id,
+                        label: city.name
+                    }));
+                    setCityOptions(options);
+                }
+            } catch (error) {
+                console.error("Error fetching cities", error);
+            }
+        };
+        fetchCities();
+    }, []);
+
+    useEffect(() => {
         dispatch(setPageTitle('Categories'));
     }, [dispatch]);
+
+    const handleSelectAllCities = () => {
+        setSelectedCities(cityOptions);
+    };
+
+    const handleDeselectAllCities = () => {
+        setSelectedCities([]);
+    };
 
     const openCreateForm = () => {
         setFormMode('create');
         setEditingCategoryId(null);
         setName('');
         setType('SALE');
+        setSelectedCities([]);
         setDynamicFields([]);
         setCategoryImage(null);
         setImagePreview('');
@@ -140,6 +174,13 @@ const CategoriesList = () => {
         setCategoryImage(null);
         setDisable(Boolean(category.disable));
         setError(null);
+
+        setSelectedCities(
+            category.cities?.map(id => {
+                const found = cityOptions.find(opt => opt.value === id);
+                return found || { value: id, label: id };
+            }) || []
+        );
 
         // Set icon previews from existing URLs
         const initialIconPreviews: Record<number, string> = {};
@@ -675,6 +716,7 @@ const CategoriesList = () => {
             // IMPORTANT: Send the dynamic fields as JSON string
             // The icon field contains the URL string from cloud storage
             formData.append('dynamicFields', JSON.stringify(dynamicFields));
+            formData.append('cities', JSON.stringify(selectedCities.map((c: any) => c.value)));
 
             if (categoryImage) {
                 formData.append('categoryImage', categoryImage);
@@ -1167,6 +1209,28 @@ const CategoriesList = () => {
                                                 <option value="RENT">RENT</option>
                                                 <option value="NEW_PROJECT">New Project</option>
                                             </select>
+                                        </div>
+
+                                        <div>
+                                            <div className="flex items-center justify-between">
+                                                <label className="text-white-dark text-xs font-semibold">Cities</label>
+                                                <div className="flex gap-2 mb-1">
+                                                    <button type="button" onClick={handleSelectAllCities} className="text-[10px] text-primary hover:underline font-bold">
+                                                        Select All
+                                                    </button>
+                                                    <span className="text-gray-300">|</span>
+                                                    <button type="button" onClick={handleDeselectAllCities} className="text-[10px] text-danger hover:underline font-bold">
+                                                        Clear All
+                                                    </button>
+                                                </div>
+                                            </div>
+                                            <Select
+                                                isMulti
+                                                options={cityOptions}
+                                                value={selectedCities}
+                                                onChange={(selected) => setSelectedCities(selected as any[])}
+                                                className="text-black dark:text-black"
+                                            />
                                         </div>
 
                                         {/* Dynamic Fields Section */}
