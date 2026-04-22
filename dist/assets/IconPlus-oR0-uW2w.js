@@ -1,0 +1,1 @@
+import{j as e}from"./index-BV1HbQoV.js";const t=({className:o,fill:r=!1,duotone:n=!0})=>e.jsxs("svg",{width:"20",height:"20",viewBox:"0 0 24 24",stroke:"currentColor",strokeWidth:"1.5",fill:"none",strokeLinecap:"round",strokeLinejoin:"round",className:o,children:[e.jsx("line",{x1:"12",y1:"5",x2:"12",y2:"19"}),e.jsx("line",{x1:"5",y1:"12",x2:"19",y2:"12"})]});export{t as I};

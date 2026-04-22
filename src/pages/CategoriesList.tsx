@@ -1215,11 +1215,18 @@ const CategoriesList = () => {
                                             <div className="flex items-center justify-between">
                                                 <label className="text-white-dark text-xs font-semibold">Cities</label>
                                                 <div className="flex gap-2 mb-1">
-                                                    <button type="button" onClick={handleSelectAllCities} className="text-[10px] text-primary hover:underline font-bold">
+                                                    <button 
+                                                        type="button" 
+                                                        onClick={handleSelectAllCities} 
+                                                        className="text-xs text-primary hover:text-primary-dark font-bold border border-primary/20 px-2 py-0.5 rounded hover:bg-primary/5 transition-colors"
+                                                    >
                                                         Select All
                                                     </button>
-                                                    <span className="text-gray-300">|</span>
-                                                    <button type="button" onClick={handleDeselectAllCities} className="text-[10px] text-danger hover:underline font-bold">
+                                                    <button 
+                                                        type="button" 
+                                                        onClick={handleDeselectAllCities} 
+                                                        className="text-xs text-danger hover:text-danger-dark font-bold border border-danger/20 px-2 py-0.5 rounded hover:bg-danger/5 transition-colors"
+                                                    >
                                                         Clear All
                                                     </button>
                                                 </div>
