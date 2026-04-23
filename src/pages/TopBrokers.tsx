@@ -107,8 +107,15 @@ const TopBrokers = () => {
           localStorage.getItem("accessToken") ||
           "";
 
+        const url = new URL(`${BASE_URL}/brokers/top`);
+        url.searchParams.set('page', String(page));
+        url.searchParams.set('limit', String(limit));
+        if (searchQuery.trim()) {
+            url.searchParams.set('search', searchQuery.trim());
+        }
+
         const res = await fetch(
-          `${BASE_URL}/brokers/top?page=${page}&limit=${limit}`,
+          url.toString(),
           {
             method: "GET",
             headers: {
@@ -169,7 +176,12 @@ const TopBrokers = () => {
     fetchTopBrokers();
 
     return () => controller.abort();
-  }, [page, limit]);
+  }, [page, limit, searchQuery]);
+
+  // Reset to page 1 on search
+  useEffect(() => {
+    setPage(1);
+  }, [searchQuery]);
 
   const rows = useMemo(() => {
     return brokers.map((b, idx) => {
@@ -219,25 +231,7 @@ const TopBrokers = () => {
     });
   }, [brokers]);
 
-  const filteredRows = useMemo(() => {
-    const query = searchQuery.trim().toLowerCase();
-
-    if (!query) return rows;
-
-    return rows.filter((r) => {
-      const name = r.name?.toLowerCase() || "";
-      const phone = r.phone?.toLowerCase() || "";
-      const email = r.email?.toLowerCase() || "";
-      const city = r.city?.toLowerCase() || "";
-
-      return (
-        name.includes(query) ||
-        phone.includes(query) ||
-        email.includes(query) ||
-        city.includes(query)
-      );
-    });
-  }, [rows, searchQuery]);
+  const displayedRows = rows;
 
   const openEdit = (broker: BrokerItem) => {
     const id = (broker._id || broker.id || "") as string;
@@ -608,16 +602,14 @@ const TopBrokers = () => {
                     </div>
                   </td>
                 </tr>
-              ) : filteredRows.length === 0 ? (
+              ) : displayedRows.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="text-center py-8">
-                    <div className="flex justify-center items-center">
-                      <div className="animate-spin border-2 border-[#2596be] dark:border-white !border-l-transparent rounded-full w-8 h-8"></div>
-                    </div>
+                  <td colSpan={9} className="text-center py-8 text-gray-500">
+                    No brokers found
                   </td>
                 </tr>
               ) : (
-                filteredRows.map((r, i) => (
+                displayedRows.map((r, i) => (
                   <tr key={r.id !== "-" ? r.id : String(r.idx)}>
                     <td>{(page - 1) * limit + i + 1}</td>
                     {/* IMAGE COLUMN */}

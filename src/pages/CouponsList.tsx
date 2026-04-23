@@ -41,32 +41,21 @@ const CouponsList = () => {
 
     useEffect(() => {
         fetchCoupons();
-    }, [page]);
+    }, [page, searchQuery]);
 
-    const filteredCoupons = coupons.filter((c) => {
-        const query = searchQuery.trim().toLowerCase();
+    // Reset to page 1 on search
+    useEffect(() => {
+        setPage(1);
+    }, [searchQuery]);
 
-        if (!query) return true;
-
-        const code = c.code?.toLowerCase() || "";
-        const type = c.discountType?.toLowerCase() || "";
-        const value = String(c.discountValue || "");
-        const minOrder = String(c.minOrderValue || "");
-
-        return (
-            code.includes(query) ||
-            type.includes(query) ||
-            value.includes(query) ||
-            minOrder.includes(query)
-        );
-    });
+    const displayedCoupons = coupons;
 
     const fetchCoupons = async () => {
         setLoading(true);
         setError(null);
         try {
             console.log('Fetching coupons...');
-            const response = await CouponsService.getCoupons(page, limit);
+            const response = await CouponsService.getCoupons(page, limit, searchQuery.trim());
             console.log('API Response:', response);
             if (response.success) {
                 console.log('Coupons data:', response.data);
@@ -402,14 +391,14 @@ const CouponsList = () => {
                                 </tr>
                             </thead>
                             <tbody>
-                                {filteredCoupons.length === 0 ? (
+                                {displayedCoupons.length === 0 ? (
                                     <tr>
                                         <td colSpan={9} className="text-center py-8 text-gray-500">
                                             No Coupons Found
                                         </td>
                                     </tr>
                                 ) : (
-                                    filteredCoupons.map((coupon) => (
+                                    displayedCoupons.map((coupon) => (
                                         <tr key={coupon._id}>
                                             <td>
                                                 <span className="font-semibold text-primary">

@@ -7,7 +7,7 @@ import IconX from '../components/Icon/IconX';
 import Swal from 'sweetalert2';
 import { BASE_URL } from '../config';
 import TableHeaderActions from '../components/TableHeaderActions';
-import Select from 'react-select';
+import Select, { components } from 'react-select';
 
 type Partner = {
     _id: string;
@@ -76,6 +76,8 @@ const PartnersList = () => {
     const [imagePreview, setImagePreview] = useState<string>('');
     const [isDisabled, setIsDisabled] = useState(false);
     const [saving, setSaving] = useState(false);
+    const [citySearch, setCitySearch] = useState("");
+    const [showTags, setShowTags] = useState(true);
     const [refreshKey, setRefreshKey] = useState(0);
 
     const [cityOptions, setCityOptions] = useState<any[]>([]);
@@ -97,13 +99,14 @@ const PartnersList = () => {
     useEffect(() => {
         const fetchCities = async () => {
             try {
-                const response = await fetch(`${BASE_URL}/city?limit=1000`);
+                const response = await fetch(`${BASE_URL}/city?limit=10000`);
                 const data = await response.json();
                 if (data.success) {
                     const citiesArr = (data.data && data.data.cities) || data.cities || [];
                     const options = citiesArr.map((city: any) => ({
                         value: city._id,
-                        label: city.name
+                        label: city.name,
+                        pincodes: Array.isArray(city.pincode) ? city.pincode.join(', ') : (city.pincode || '')
                     }));
                     setCityOptions(options);
                 }
@@ -433,6 +436,9 @@ const PartnersList = () => {
                 url.searchParams.set('limit', String(limit));
                 url.searchParams.set('sortBy', 'createdAt');
                 url.searchParams.set('sortOrder', 'desc');
+                if (searchQuery.trim()) {
+                    url.searchParams.set('search', searchQuery.trim());
+                }
 
                 const res = await fetch(url.toString(), {
                     method: 'GET',
@@ -475,17 +481,14 @@ const PartnersList = () => {
         return () => {
             controller.abort();
         };
-    }, [page, limit, refreshKey]);
+    }, [page, limit, refreshKey, searchQuery]); // ✅ Added searchQuery to dependencies
 
-    const filteredPartners = partners.filter((p) => {
-        const query = searchQuery.trim().toLowerCase();
+    // Reset to page 1 on search
+    useEffect(() => {
+        setPage(1);
+    }, [searchQuery]);
 
-        if (!query) return true;
-
-        const name = p.PartnerName?.toLowerCase() || "";
-
-        return name.includes(query);
-    });
+    const displayedPartners = partners;
 
     const handleDownload = async (endpoint: string, fileType: "pdf" | "excel" | "csv") => {
         try {
@@ -561,14 +564,14 @@ const PartnersList = () => {
                                         </div>
                                     </td>
                                 </tr>
-                            ) : filteredPartners.length === 0 ? (
+                            ) : displayedPartners.length === 0 ? (
                                 <tr>
-                                    <div className="flex justify-center items-center py-8">
-                                        <div className="animate-spin border-2 border-[#2596be] dark:border-white !border-l-transparent rounded-full w-8 h-8"></div>
-                                    </div>
+                                    <td colSpan={6} className="text-center py-8 text-gray-500">
+                                        No partners found
+                                    </td>
                                 </tr>
                             ) : (
-                                filteredPartners.map((row, index) => (
+                                displayedPartners.map((row, index) => (
                                     <tr key={row._id}>
                                         <td>{(page - 1) * limit + index + 1}</td>
                                         <td>
@@ -720,26 +723,94 @@ const PartnersList = () => {
                                             <input className="form-input" value={partnerName} onChange={(e) => setPartnerName(e.target.value)} type="text" required />
                                         </div>
 
-                                        <div>
-                                            <div className="flex items-center justify-between">
-                                                <label className="text-white-dark text-xs font-semibold">Cities</label>
-                                                <div className="flex gap-2 mb-1">
-                                                    <button type="button" onClick={handleSelectAllCities} className="text-[10px] text-primary hover:underline font-bold">
-                                                        Select All
-                                                    </button>
-                                                    <span className="text-gray-300">|</span>
-                                                    <button type="button" onClick={handleDeselectAllCities} className="text-[10px] text-danger hover:underline font-bold">
-                                                        Clear All
+                                        <div className="bg-gray-50 dark:bg-gray-800/50 p-2 rounded border border-gray-200 dark:border-gray-700">
+                                            <div className="flex flex-col gap-1.5">
+                                                <div className="flex items-center justify-between">
+                                                    <label className="text-white-dark text-xs font-semibold">Cities ({selectedCities.length})</label>
+                                                    <div className="flex gap-2">
+                                                        <button 
+                                                            type="button" 
+                                                            onClick={handleSelectAllCities} 
+                                                            className="text-[10px] text-primary hover:underline font-bold"
+                                                        >
+                                                            Select All
+                                                        </button>
+                                                        <span className="text-gray-300">|</span>
+                                                        <button 
+                                                            type="button" 
+                                                            onClick={handleDeselectAllCities} 
+                                                            className="text-[10px] text-danger hover:underline font-bold"
+                                                        >
+                                                            Clear All
+                                                        </button>
+                                                    </div>
+                                                </div>
+
+                                                <div className="flex items-center gap-2 mb-1">
+                                                    <div className="relative flex-1">
+                                                        <input 
+                                                            type="text" 
+                                                            className="form-input form-input-sm pr-8" 
+                                                            placeholder="Search in selected cities..." 
+                                                            value={citySearch}
+                                                            onChange={(e) => {
+                                                                setCitySearch(e.target.value);
+                                                                if (!showTags) setShowTags(true);
+                                                            }}
+                                                        />
+                                                        {citySearch && (
+                                                            <button 
+                                                                type="button" 
+                                                                onClick={() => setCitySearch("")}
+                                                                className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                                                            >
+                                                                <IconX className="w-3 h-3" />
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setShowTags(!showTags)}
+                                                        className={`btn btn-xs ${showTags ? 'btn-primary' : 'btn-outline-primary'} whitespace-nowrap`}
+                                                    >
+                                                        {showTags ? 'Hide Tags' : 'Show Tags'}
                                                     </button>
                                                 </div>
+
+                                                <Select
+                                                    isMulti
+                                                    options={cityOptions}
+                                                    value={selectedCities}
+                                                    onChange={(selected) => setSelectedCities(selected as any[])}
+                                                    className="text-black dark:text-black"
+                                                    placeholder="Search to add cities..."
+                                                    components={{
+                                                        MultiValue: (props: any) => {
+                                                            if (!showTags) return null;
+                                                            const search = citySearch.toLowerCase();
+                                                            const label = props.data.label.toLowerCase();
+                                                            const pincodes = (props.data.pincodes || '').toLowerCase();
+                                                            
+                                                            if (citySearch && !label.includes(search) && !pincodes.includes(search)) {
+                                                                return null;
+                                                            }
+                                                            // Limit visible tags when not searching to 50 for performance
+                                                            if (!citySearch && selectedCities.indexOf(props.data) > 50) {
+                                                                if (selectedCities.indexOf(props.data) === 51) {
+                                                                    return <div className="text-[10px] p-1 text-gray-500">...and {selectedCities.length - 50} more</div>;
+                                                                }
+                                                                return null;
+                                                            }
+                                                            return <components.MultiValue {...props} />;
+                                                        }
+                                                    }}
+                                                />
+                                                {selectedCities.length > 100 && !citySearch && showTags && (
+                                                    <div className="text-[10px] text-gray-500 italic mt-1 text-right">
+                                                        Showing first 100 cities. Use search to find specific cities.
+                                                    </div>
+                                                )}
                                             </div>
-                                            <Select
-                                                isMulti
-                                                options={cityOptions}
-                                                value={selectedCities}
-                                                onChange={(selected) => setSelectedCities(selected as any[])}
-                                                className="text-black dark:text-black"
-                                            />
                                         </div>
 
                                         {/* <div className="flex items-center gap-2">

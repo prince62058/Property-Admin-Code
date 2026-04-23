@@ -67,7 +67,7 @@ const Cities = () => {
 
   useEffect(() => {
     fetchCities();
-  }, [page, limit]);
+  }, [page, limit, searchQuery]); // ✅ Added searchQuery to dependencies
 
   const fetchCities = async () => {
     setLoading(true);
@@ -76,26 +76,19 @@ const Cities = () => {
       const url = new URL(`${BASE_URL}/city`);
       url.searchParams.set("page", String(page));
       url.searchParams.set("limit", String(limit));
+      if (searchQuery.trim()) {
+        url.searchParams.set("search", searchQuery.trim());
+      }
 
       const response = await fetch(url.toString());
       const data = await response.json();
       if (data.success) {
-        // Support both shapes: { data: { cities, pagination } } and { cities, pagination }
         const citiesArr: City[] =
           (data.data && data.data.cities) || data.cities || [];
         const pagination =
           (data.data && data.data.pagination) || data.pagination || null;
 
-        // Sort by createdAt descending if present
-        const sortedCities = Array.isArray(citiesArr)
-          ? citiesArr.sort(
-            (a: City, b: City) =>
-              new Date(b.createdAt).getTime() -
-              new Date(a.createdAt).getTime(),
-          )
-          : [];
-
-        setCities(sortedCities);
+        setCities(citiesArr); // Don't sort locally if we want server order
         setTotalPages(pagination?.totalPages || 1);
       } else {
         setError("Failed to fetch cities");
@@ -107,27 +100,13 @@ const Cities = () => {
     }
   };
 
-  const filteredCities = useMemo(() => {
-    const query = searchQuery.trim().toLowerCase();
+  // ✅ Server-side search implemented, local filter removed
+  const displayedCities = cities;
 
-    if (!query) return cities;
-
-    return cities.filter((city) => {
-      const name = city.name?.toLowerCase() || "";
-      const slug = city.slug?.toLowerCase() || "";
-      const pincode = city.pincode || "";
-      const state = city.state?.toLowerCase() || "";
-      const country = city.country?.toLowerCase() || "";
-
-      return (
-        name.includes(query) ||
-        slug.includes(query) ||
-        pincode.includes(query) ||
-        state.includes(query) ||
-        country.includes(query)
-      );
-    });
-  }, [cities, searchQuery]);
+  // Reset to page 1 when search query changes
+  useEffect(() => {
+    setPage(1);
+  }, [searchQuery]);
 
   const handleCreateCity = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -400,14 +379,14 @@ const Cities = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredCities.length === 0 ? (
+                  {displayedCities.length === 0 ? (
                     <tr>
                       <td colSpan={5} className="text-center py-6 text-gray-500">
                         No cities found
                       </td>
                     </tr>
                   ) : (
-                    filteredCities.map((city) => (
+                    displayedCities.map((city) => (
                       <tr key={city._id}>
                         <td>
                           <div className="flex items-center">

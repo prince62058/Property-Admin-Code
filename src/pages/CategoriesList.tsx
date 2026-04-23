@@ -9,7 +9,7 @@ import IconTrash from '../components/Icon/IconTrash';
 import Swal from 'sweetalert2';
 import { BASE_URL } from "../config";
 import { Download, Trash } from 'lucide-react';
-import Select from 'react-select';
+import Select, { components } from 'react-select';
 import TableHeaderActions from '../components/TableHeaderActions';
 
 type DynamicField = {
@@ -82,6 +82,8 @@ const CategoriesList = () => {
     const [categoryImage, setCategoryImage] = useState<File | null>(null);
     const [imagePreview, setImagePreview] = useState<string>('');
     const [disable, setDisable] = useState(false);
+    const [citySearch, setCitySearch] = useState("");
+    const [showTags, setShowTags] = useState(true);
     const [saving, setSaving] = useState(false);
     const [deleteDialog, setDeleteDialog] = useState(false);
     const [categoryToDelete, setCategoryToDelete] = useState<CategoryItem | null>(null);
@@ -120,13 +122,14 @@ const CategoriesList = () => {
     useEffect(() => {
         const fetchCities = async () => {
             try {
-                const response = await fetch(`${BASE_URL}/city?limit=1000`);
+                const response = await fetch(`${BASE_URL}/city?limit=10000`);
                 const data = await response.json();
                 if (data.success) {
                     const citiesArr = (data.data && data.data.cities) || data.cities || [];
                     const options = citiesArr.map((city: any) => ({
                         value: city._id,
-                        label: city.name
+                        label: city.name,
+                        pincodes: Array.isArray(city.pincode) ? city.pincode.join(', ') : (city.pincode || '')
                     }));
                     setCityOptions(options);
                 }
@@ -1211,9 +1214,10 @@ const CategoriesList = () => {
                                             </select>
                                         </div>
 
-                                        <div>
+                                         <div className="bg-gray-50 dark:bg-gray-800/50 p-2 rounded border border-gray-200 dark:border-gray-700">
+                                            <div className="flex flex-col gap-1.5">
                                             <div className="flex items-center justify-between">
-                                                <label className="text-white-dark text-xs font-semibold">Cities</label>
+                                                <label className="text-white-dark text-xs font-semibold">Cities ({selectedCities.length})</label>
                                                 <div className="flex gap-2 mb-1">
                                                     <button 
                                                         type="button" 
@@ -1230,6 +1234,37 @@ const CategoriesList = () => {
                                                         Clear All
                                                     </button>
                                                 </div>
+
+                                                <div className="flex items-center gap-2 mb-1">
+                                                    <div className="relative flex-1">
+                                                        <input 
+                                                            type="text" 
+                                                            className="form-input form-input-sm pr-8" 
+                                                            placeholder="Search in selected cities..." 
+                                                            value={citySearch}
+                                                            onChange={(e) => {
+                                                                setCitySearch(e.target.value);
+                                                                if (!showTags) setShowTags(true);
+                                                            }}
+                                                        />
+                                                        {citySearch && (
+                                                            <button 
+                                                                type="button" 
+                                                                onClick={() => setCitySearch("")}
+                                                                className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                                                            >
+                                                                <IconX className="w-3 h-3" />
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setShowTags(!showTags)}
+                                                        className={`btn btn-xs ${showTags ? 'btn-primary' : 'btn-outline-primary'} whitespace-nowrap`}
+                                                    >
+                                                        {showTags ? 'Hide Tags' : 'Show Tags'}
+                                                    </button>
+                                                </div>
                                             </div>
                                             <Select
                                                 isMulti
@@ -1237,8 +1272,35 @@ const CategoriesList = () => {
                                                 value={selectedCities}
                                                 onChange={(selected) => setSelectedCities(selected as any[])}
                                                 className="text-black dark:text-black"
+                                                placeholder="Search to add cities..."
+                                                components={{
+                                                    MultiValue: (props: any) => {
+                                                        if (!showTags) return null;
+                                                        const search = citySearch.toLowerCase();
+                                                        const label = props.data.label.toLowerCase();
+                                                        const pincodes = (props.data.pincodes || '').toLowerCase();
+                                                        
+                                                        if (citySearch && !label.includes(search) && !pincodes.includes(search)) {
+                                                            return null;
+                                                        }
+                                                        // Limit visible tags when not searching to 50 for performance
+                                                        if (!citySearch && selectedCities.indexOf(props.data) > 50) {
+                                                            if (selectedCities.indexOf(props.data) === 51) {
+                                                                return <div className="text-[10px] p-1 text-gray-500">...and {selectedCities.length - 50} more</div>;
+                                                            }
+                                                            return null;
+                                                        }
+                                                        return <components.MultiValue {...props} />;
+                                                    }
+                                                }}
                                             />
-                                        </div>
+                                            {selectedCities.length > 100 && !citySearch && showTags && (
+                                                <div className="text-[10px] text-gray-500 italic mt-1 text-right">
+                                                    Showing first 100 cities. Use search to find specific cities.
+                                                </div>
+                                            )}
+                                            </div>
+                                         </div>
 
                                         {/* Dynamic Fields Section */}
                                         <div className="space-y-4">

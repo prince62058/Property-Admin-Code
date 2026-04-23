@@ -25,13 +25,21 @@ import { BASE_URL } from '../config';
 
 export class CouponsService {
 
-  static async getCoupons(page: number = 1, limit: number = 10): Promise<CouponsResponse> {
+  static async getCoupons(page: number = 1, limit: number = 10, search: string = ''): Promise<CouponsResponse> {
     try {
       const token = localStorage.getItem('token') || localStorage.getItem('accessToken') || '';
       console.log('CouponsService - Token:', token);
-      console.log('CouponsService - API URL:', `${BASE_URL}/coupon?page=${page}&limit=${limit}`);
       
-      const response = await fetch(`${BASE_URL}/coupon?page=${page}&limit=${limit}`, {
+      const url = new URL(`${BASE_URL}/coupon`);
+      url.searchParams.set('page', String(page));
+      url.searchParams.set('limit', String(limit));
+      if (search) {
+          url.searchParams.set('search', search);
+      }
+      
+      console.log('CouponsService - API URL:', url.toString());
+      
+      const response = await fetch(url.toString(), {
         method: 'GET',
         headers: {
           'Accept': 'application/json',
