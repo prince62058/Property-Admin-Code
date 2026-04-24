@@ -255,6 +255,48 @@ const CouponsList = () => {
     //     }
     // };
 
+    const handleDeleteCoupon = async (coupon: Coupon) => {
+        Swal.fire({
+            title: 'Are you sure?',
+            text: "You won't be able to revert this!",
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#3085d6',
+            cancelButtonColor: '#d33',
+            confirmButtonText: 'Yes, delete it!'
+        }).then(async (result) => {
+            if (result.isConfirmed) {
+                try {
+                    const token = localStorage.getItem('token') || localStorage.getItem('accessToken') || '';
+                    const response = await fetch(`${BASE_URL}/coupon/${coupon._id}`, {
+                        method: 'DELETE',
+                        headers: {
+                            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                        }
+                    });
+
+                    if (!response.ok) throw new Error('Failed to delete coupon');
+
+                    const data = await response.json();
+                    if (data.success) {
+                        toast.fire({
+                            icon: 'success',
+                            title: 'Coupon Deleted Successfully'
+                        });
+                        fetchCoupons();
+                    } else {
+                        throw new Error(data.message || 'Failed to delete coupon');
+                    }
+                } catch (error) {
+                    toast.fire({
+                        icon: 'error',
+                        title: (error as Error).message || 'Failed to delete coupon'
+                    });
+                }
+            }
+        });
+    };
+
     const handleAddCoupon = () => {
         setEditingCoupon(null);
         setIsFormOpen(true);
@@ -454,6 +496,12 @@ const CouponsList = () => {
                                                         className="btn btn-sm btn-primary"
                                                     >
                                                         <IconEdit className="w-4 h-4" />
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleDeleteCoupon(coupon)}
+                                                        className="btn btn-sm btn-danger"
+                                                    >
+                                                        <IconTrashLines className="w-4 h-4" />
                                                     </button>
 
                                                 </div>

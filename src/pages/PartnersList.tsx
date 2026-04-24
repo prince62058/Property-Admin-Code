@@ -3,6 +3,7 @@ import { useDispatch } from 'react-redux';
 import { setPageTitle } from '../store/themeConfigSlice';
 import { Dialog, DialogPanel, Transition, TransitionChild } from '@headlessui/react';
 import IconEdit from '../components/Icon/IconEdit';
+import IconTrashLines from '../components/Icon/IconTrashLines';
 import IconX from '../components/Icon/IconX';
 import Swal from 'sweetalert2';
 import { BASE_URL } from '../config';
@@ -423,6 +424,49 @@ const PartnersList = () => {
         }
     };
 
+    const onDeletePartner = async (partner: Partner) => {
+        Swal.fire({
+            title: 'Are you sure?',
+            text: "You won't be able to revert this!",
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#3085d6',
+            cancelButtonColor: '#d33',
+            confirmButtonText: 'Yes, delete it!'
+        }).then(async (result) => {
+            if (result.isConfirmed) {
+                try {
+                    const token = localStorage.getItem('token');
+                    const res = await fetch(`${BASE_URL}/deletePartner/${partner._id}`, {
+                        method: 'DELETE',
+                        headers: {
+                            Accept: 'application/json',
+                            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                        },
+                    });
+
+                    if (!res.ok) throw new Error('Failed to delete partner');
+
+                    const json = await res.json();
+                    if (json.success) {
+                        toast.fire({
+                            icon: 'success',
+                            title: 'Partner Deleted Successfully'
+                        });
+                        setRefreshKey(k => k + 1);
+                    } else {
+                        throw new Error(json.message || 'Failed to delete partner');
+                    }
+                } catch (err) {
+                    toast.fire({
+                        icon: 'error',
+                        title: (err as Error).message || 'Failed to delete partner'
+                    });
+                }
+            }
+        });
+    };
+
     useEffect(() => {
         const controller = new AbortController();
 
@@ -626,9 +670,12 @@ const PartnersList = () => {
                                             </button>
                                         </td>
                                         <td className="text-center">
-                                            <div className="flex items-center justify-center">
+                                            <div className="flex items-center justify-center gap-2">
                                                 <button type="button" className="btn btn-sm btn-outline-primary" onClick={() => openEditForm(row)}>
                                                     <IconEdit />
+                                                </button>
+                                                <button type="button" className="btn btn-sm btn-outline-danger" onClick={() => onDeletePartner(row)}>
+                                                    <IconTrashLines />
                                                 </button>
                                             </div>
                                         </td>
