@@ -65,6 +65,9 @@ const AdminLogin = () => {
 
             localStorage.setItem('token', json.token);
             localStorage.setItem('adminId', json.admin.id);
+            if (json.admin.permission) {
+                localStorage.setItem('permission', JSON.stringify(json.admin.permission));
+            }
 
             navigate('/users');
         } catch (err) {

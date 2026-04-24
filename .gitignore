@@ -1,1 +1,8 @@
 /node_modules
+/dist
+/scratch
+.DS_Store
+.env
+.env.local
+.env.*.local
+*.log
